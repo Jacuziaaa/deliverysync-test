@@ -267,6 +267,17 @@ textarea{resize:none;}
       <div class="fg"><label class="flbl">🔒 Tipologia Sigilli</label><input class="finp" id="ssig" placeholder="es. Sigillo oro…"></div>
       <div class="fg"><label class="flbl">💳 Tipo Pagamento</label><input class="finp" id="spag" placeholder="es. Bonifico, Contrassegno…"></div>
       <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="snot" placeholder="Informazioni utili…"></textarea></div>
+      <div class="fg">
+        <label class="flbl">📋 Stato spedizione</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-chips-form">
+          <button class="chip" id="fchip-proforma" data-field="proforma">Proforma</button>
+          <button class="chip" id="fchip-fattura"  data-field="fattura">Fattura</button>
+          <button class="chip" id="fchip-pagato"   data-field="pagato">Pagato</button>
+          <button class="chip" id="fchip-gls"      data-field="gls">GLS</button>
+          <button class="chip" id="fchip-pacco"    data-field="pacco">Pacco pronto</button>
+          <button class="chip" id="fchip-spedito"  data-field="spedito">Spedito</button>
+        </div>
+      </div>
       <button id="ssbtn">Salva Spedizione</button>
     </div>
   </div>
@@ -813,12 +824,35 @@ function openShipmentModal(editId){
     });
   }
 
+  // Inizializza chip di stato nel modal
+  var chipState = {};
+  SHIP_FIELDS.forEach(function(f){
+    chipState[f.k] = ship ? (ship[f.k]||false) : false;
+  });
+  function updateFormChips(){
+    SHIP_FIELDS.forEach(function(f){
+      var chip = document.getElementById('fchip-'+f.k);
+      if(!chip) return;
+      chip.className = 'chip' + (chipState[f.k] ? ' on' : '');
+      chip.textContent = f.l + (chipState[f.k] ? ' ✓' : '');
+    });
+  }
+  updateFormChips();
+  SHIP_FIELDS.forEach(function(f){
+    var chip = document.getElementById('fchip-'+f.k);
+    if(!chip) return;
+    chip.onclick = function(){
+      chipState[f.k] = !chipState[f.k];
+      updateFormChips();
+    };
+  });
+
   var sb=document.getElementById('ssbtn');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.style.background=u.color;sb.disabled=false;
   sb.onclick=function(){
     var locale=document.getElementById('sloc').value.trim(),merce=document.getElementById('smer').value.trim();
     if(!locale||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
-    var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=ship?ship[f.k]||false:false;});
+    var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
     var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:document.getElementById('ssig').value.trim(),pagamento:document.getElementById('spag').value.trim(),note:document.getElementById('snot').value.trim(),userId:selRep},bools);
     if(isEdit){payload.createdAt=ship.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
