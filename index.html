@@ -79,7 +79,7 @@ textarea{resize:none;}
 .bnavbtn span:first-child{font-size:20px;}
 
 #app{display:flex;flex-direction:column;height:100vh;max-width:460px;margin:0 auto;}
-#main{flex:1;overflow-y:auto;padding-bottom:90px;}
+#main{flex:1;overflow-y:auto;padding-bottom:140px;}
 .scr{display:none;padding:12px 14px;}
 .scr.show{display:block;}
 
@@ -576,6 +576,7 @@ function switchTab(tab){
   S.tab=tab;
   document.querySelectorAll('.bnavbtn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('bnav-'+tab).classList.add('active');
+  document.getElementById('bnav').classList.add('show'); // mostra sempre bottom nav nelle tab principali
   if(tab==='home'){
     showScr('home');
     document.getElementById('back').style.display='none';
@@ -608,6 +609,7 @@ function openDay(dayKey){
   document.getElementById('fab').classList.add('show');
   document.getElementById('htitle').textContent=DAYS.find(function(d){return d.k===dayKey;}).l;
   document.getElementById('hsub').textContent='';
+  document.getElementById('bnav').classList.remove('show'); // nascondi bottom nav nel giorno
   showScr('day');
 }
 
@@ -899,7 +901,7 @@ document.getElementById('logbtn').addEventListener('click',function(){
     CKEY=null;localStorage.removeItem(SK);auth.signOut();
   });
 });
-document.getElementById('back').addEventListener('click',function(){switchTab(S.tab==='ship'?'ship':'home');});
+document.getElementById('back').addEventListener('click',function(){document.getElementById('bnav').classList.add('show');switchTab(S.tab==='ship'?'ship':'home');});
 document.getElementById('fab').addEventListener('click',function(){
   if(S.tab==='ship')openShipmentModal(null);
   else openOrderModal(null,S.day);
