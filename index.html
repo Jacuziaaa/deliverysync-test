@@ -243,7 +243,10 @@ textarea{resize:none;}
       <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="floc" placeholder="es. Bar Milano…"></div>
       <div class="fg"><label class="flbl">📍 Luogo Consegna *</label><input class="finp" id="fluo" placeholder="es. Via Roma 12, Venezia"></div>
       <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="fmer" placeholder="es. 3 cassette birra…"></textarea></div>
-      <div class="fg"><label class="flbl">🔒 Tipologia Sigilli</label><input class="finp" id="fsig" placeholder="es. Sigillo oro…"></div>
+      <div class="fg">
+        <label class="flbl">🔒 Tipologia Sigilli</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="osig-pick"></div>
+      </div>
       <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="fnot" placeholder="Informazioni utili…"></textarea></div>
       <button id="sbtn">Salva Ordine</button>
     </div>
@@ -264,8 +267,14 @@ textarea{resize:none;}
         </div>
       </div>
       <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="smer" placeholder="es. 3 cassette birra…"></textarea></div>
-      <div class="fg"><label class="flbl">🔒 Tipologia Sigilli</label><input class="finp" id="ssig" placeholder="es. Sigillo oro…"></div>
-      <div class="fg"><label class="flbl">💳 Tipo Pagamento</label><input class="finp" id="spag" placeholder="es. Bonifico, Contrassegno…"></div>
+      <div class="fg">
+        <label class="flbl">🔒 Tipologia Sigilli</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ssig-pick"></div>
+      </div>
+      <div class="fg">
+        <label class="flbl">💳 Tipo Pagamento</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="spag-pick"></div>
+      </div>
       <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="snot" placeholder="Informazioni utili…"></textarea></div>
       <div class="fg">
         <label class="flbl">📋 Stato spedizione</label>
@@ -404,6 +413,8 @@ var SHIP_FIELDS = [
   {k:'pacco',     l:'Pacco pronto'},
   {k:'spedito',   l:'Spedito'}
 ];
+var SIGILLI_OPTS = ['Bianchi', 'Personalizzati omaggio', 'Personalizzati a pagamento'];
+var PAG_OPTS     = ['Bonifico', 'Contrassegno', 'Paypal'];
 var SK = 'ds_cpw';
 
 var S = {uid:null, orders:[], shipments:[], day:null, tab:'home'};
@@ -551,6 +562,25 @@ function setConn(ok){
   else{c.className='off';c.style.display='block';c.textContent='⚠ Offline…';}
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, onSelect) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  var sel = currentVal || null;
+  opts.forEach(function(opt) {
+    var btn = document.createElement('button');
+    var isOn = sel === opt;
+    btn.style.cssText = 'font-size:12px;font-weight:700;padding:8px 12px;border-radius:20px;border:1.5px solid '+(isOn?accentColor:'var(--border)')+';background:'+(isOn?accentBg:'var(--surface2)')+';color:'+(isOn?accentColor:'var(--muted)')+';cursor:pointer;transition:all .15s;';
+    btn.textContent = opt + (isOn ? ' ✓' : '');
+    btn.addEventListener('click', function() {
+      sel = (sel === opt) ? null : opt; // toggle
+      onSelect(sel);
+      buildChipPicker(containerId, opts, sel, accentColor, accentBg, onSelect);
+    });
+    container.appendChild(btn);
+  });
+}
 function hideLoader(){document.getElementById('loader').style.display='none';}
 
 // ── SCREENS ───────────────────────────────────────────────────────────────
@@ -757,9 +787,10 @@ function openOrderModal(editId,defDay){
   document.getElementById('floc').value=order?order.locale:'';
   document.getElementById('fluo').value=order?order.luogo:'';
   document.getElementById('fmer').value=order?order.merce:'';
-  document.getElementById('fsig').value=order?order.sigilli:'';
   document.getElementById('fnot').value=order?order.note:'';
   document.getElementById('repgrp').style.display=isEdit?'flex':'none';
+  var selSig = order?order.sigilli:'';
+  buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});
   var dp=document.getElementById('dpick');dp.innerHTML='';
   var selDay=day;
   DAYS.forEach(function(d){
@@ -781,7 +812,7 @@ function openOrderModal(editId,defDay){
     var locale=document.getElementById('floc').value.trim(),luogo=document.getElementById('fluo').value.trim(),merce=document.getElementById('fmer').value.trim();
     if(!locale||!luogo||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
-    var payload={locale:locale,luogo:luogo,merce:document.getElementById('fmer').value.trim(),sigilli:document.getElementById('fsig').value.trim(),note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep};
+    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep};
     if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encOrder(payload,function(err,enc){
@@ -801,9 +832,11 @@ function openShipmentModal(editId){
   document.getElementById('smtit').textContent=isEdit?'Modifica Spedizione':'Nuova Spedizione';
   document.getElementById('sloc').value=ship?ship.locale:'';
   document.getElementById('smer').value=ship?ship.merce:'';
-  document.getElementById('ssig').value=ship?ship.sigilli:'';
-  document.getElementById('spag').value=ship?ship.pagamento:'';
   document.getElementById('snot').value=ship?ship.note:'';
+  var selSSig = ship?ship.sigilli:'';
+  var selSpag = ship?ship.pagamento:'';
+  buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
+  buildChipPicker('spag-pick', PAG_OPTS,     selSpag, u.color, u.bg, function(v){selSpag=v;});
   document.getElementById('srepgrp').style.display=isEdit?'flex':'none';
 
   // Chan picker
@@ -855,7 +888,7 @@ function openShipmentModal(editId){
     if(!locale||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
     var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
-    var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:document.getElementById('ssig').value.trim(),pagamento:document.getElementById('spag').value.trim(),note:document.getElementById('snot').value.trim(),userId:selRep},bools);
+    var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:selSSig||'',pagamento:selSpag||'',note:document.getElementById('snot').value.trim(),userId:selRep},bools);
     if(isEdit){payload.createdAt=ship.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encShipment(payload,function(err,enc){
