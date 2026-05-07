@@ -135,7 +135,7 @@ textarea{resize:none;}
 .sc-field{font-size:12px;color:var(--sub);margin-bottom:3px;}
 /* STATUS CHIPS */
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
-.chip{font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;user-select:none;}
+.chip{font-size:13px;font-weight:700;padding:8px 13px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;user-select:none;}
 .chip.on{background:var(--gbg);color:var(--green);border-color:#16a87a55;}
 
 /* SHIPMENTS TOOLBAR */
@@ -239,7 +239,7 @@ textarea{resize:none;}
     <div class="mhead"><span class="mtitle" id="omtit">Nuovo Ordine</span><button class="mclose" id="omcl">✕</button></div>
     <div class="mbody">
       <div class="fg"><label class="flbl">Giorno di consegna</label><div class="dpick" id="dpick"></div></div>
-      <div class="fg" id="repgrp" style="display:none"><label class="flbl">Rappresentante</label><div class="rpick" id="rpick"></div></div>
+      <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
       <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="floc" placeholder="es. Bar Milano…"></div>
       <div class="fg"><label class="flbl">📍 Luogo Consegna *</label><input class="finp" id="fluo" placeholder="es. Via Roma 12, Venezia"></div>
       <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="fmer" placeholder="es. 3 cassette birra…"></textarea></div>
@@ -254,7 +254,7 @@ textarea{resize:none;}
     <div class="mh"></div>
     <div class="mhead"><span class="mtitle" id="smtit">Nuova Spedizione</span><button class="mclose" id="smcl">✕</button></div>
     <div class="mbody">
-      <div class="fg" id="srepgrp" style="display:none"><label class="flbl">Rappresentante</label><div class="rpick" id="srpick"></div></div>
+      <div class="fg" id="srepgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="srpick"></div></div>
       <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="sloc" placeholder="es. Bar Milano…"></div>
       <div class="fg">
         <label class="flbl">📨 Canale ricezione</label>
@@ -270,12 +270,13 @@ textarea{resize:none;}
       <div class="fg">
         <label class="flbl">📋 Stato spedizione</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-chips-form">
-          <button class="chip" id="fchip-proforma" data-field="proforma">Proforma</button>
-          <button class="chip" id="fchip-fattura"  data-field="fattura">Fattura</button>
-          <button class="chip" id="fchip-pagato"   data-field="pagato">Pagato</button>
-          <button class="chip" id="fchip-gls"      data-field="gls">GLS</button>
-          <button class="chip" id="fchip-pacco"    data-field="pacco">Pacco pronto</button>
-          <button class="chip" id="fchip-spedito"  data-field="spedito">Spedito</button>
+          <button class="chip" id="fchip-proforma"  data-field="proforma">Proforma</button>
+          <button class="chip" id="fchip-fattura"   data-field="fattura">Fattura</button>
+          <button class="chip" id="fchip-avviso"    data-field="avviso">Avviso cliente</button>
+          <button class="chip" id="fchip-pagato"    data-field="pagato">Pagato</button>
+          <button class="chip" id="fchip-etichetta" data-field="etichetta">Etichetta spedizione</button>
+          <button class="chip" id="fchip-pacco"     data-field="pacco">Pacco pronto</button>
+          <button class="chip" id="fchip-spedito"   data-field="spedito">Spedito</button>
         </div>
       </div>
       <button id="ssbtn" style="padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;margin-top:2px;width:100%;">Salva Spedizione</button>
@@ -397,8 +398,9 @@ var USERS = {
 var SHIP_FIELDS = [
   {k:'proforma',  l:'Proforma'},
   {k:'fattura',   l:'Fattura'},
+  {k:'avviso',    l:'Avviso cliente'},
   {k:'pagato',    l:'Pagato'},
-  {k:'gls',       l:'GLS'},
+  {k:'etichetta', l:'Etichetta spedizione'},
   {k:'pacco',     l:'Pacco pronto'},
   {k:'spedito',   l:'Spedito'}
 ];
@@ -869,7 +871,7 @@ function openShipmentModal(editId){
 // ── EXPORT ORDERS ─────────────────────────────────────────────────────────
 function openExport(rows,title){
   document.getElementById('extit').textContent=title;
-  var hdr=['Rappresentante','Nome Locale','Luogo Consegna','Merce / Quantità','Sigilli','Note'];
+  var hdr=['Azienda','Nome Locale','Luogo Consegna','Merce / Quantità','Sigilli','Note'];
   var txt=[hdr].concat(rows.map(function(o){return[USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale,o.luogo,o.merce,o.sigilli||'',o.note||''];})).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
@@ -879,13 +881,13 @@ function openExport(rows,title){
 
 // ── EXPORT SHIPMENTS ──────────────────────────────────────────────────────
 function exportShipments(rows){
-  var hdr=['Rappresentante','Nome Locale','Canale','Merce / Quantità','Sigilli','Pagamento','Proforma','Fattura','Pagato','GLS','Pacco pronto','Spedito','Note'];
+  var hdr=['Azienda','Nome Locale','Canale','Merce / Quantità','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso cliente','Etichetta spedizione','Pacco pronto','Spedito','Note'];
   var txt=[hdr].concat(rows.map(function(s){
     return[
       USERS[s.userId]?USERS[s.userId].label:s.userId,
       s.locale,s.canale==='W'?'WhatsApp':'Mail',s.merce,s.sigilli||'',s.pagamento||'',
       s.proforma?'X':'',s.fattura?'X':'',s.pagato?'X':'',
-      s.gls?'X':'',s.pacco?'X':'',s.spedito?'X':'',s.note||''
+      s.avviso?'X':'',s.etichetta?'X':'',s.pacco?'X':'',s.spedito?'X':'',s.note||''
     ];
   })).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('extit').textContent='Esporta Spedizioni';
