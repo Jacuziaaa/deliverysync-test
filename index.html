@@ -164,11 +164,11 @@ textarea{resize:none;}
 .finp:focus{border-color:var(--green);}
 .fta{height:66px;}
 .dpick{display:flex;gap:5px;flex-wrap:wrap;}
-.dtog{padding:7px 9px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;font-weight:700;flex:1 0 auto;min-width:42px;text-align:center;}
+.dtog{padding:7px 9px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);font-size:13px;font-weight:700;flex:1 0 auto;min-width:42px;text-align:center;}
 .rpick{display:flex;gap:8px;}
-.rtog{flex:1;padding:10px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:12px;font-weight:700;}
+.rtog{flex:1;padding:10px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;}
 .chan-pick{display:flex;gap:8px;}
-.ctog{flex:1;padding:12px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:14px;font-weight:800;text-align:center;}
+.ctog{flex:1;padding:12px;border-radius:10px;border:2px solid var(--border);background:transparent;color:var(--muted);font-size:13px;font-weight:700;text-align:center;}
 .ctog.w-on{border-color:#16a87a;background:var(--gbg);color:var(--green);}
 .ctog.m-on{border-color:#3b82f6;background:#eff6ff;color:#3b82f6;}
 #sbtn{padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;margin-top:2px;}
@@ -581,7 +581,8 @@ function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, o
   opts.forEach(function(opt) {
     var btn = document.createElement('button');
     var isOn = sel === opt;
-    btn.style.cssText = 'font-size:12px;font-weight:700;padding:8px 12px;border-radius:20px;border:1.5px solid '+(isOn?accentColor:'var(--border)')+';background:'+(isOn?accentBg:'var(--surface2)')+';color:'+(isOn?accentColor:'var(--muted)')+';cursor:pointer;transition:all .15s;';
+    btn.className = 'chip' + (isOn ? ' on' : '');
+    if (isOn) { btn.style.background=accentBg; btn.style.color=accentColor; btn.style.borderColor=accentColor+'55'; }
     btn.textContent = opt + (isOn ? ' ✓' : '');
     btn.addEventListener('click', function() {
       sel = (sel === opt) ? null : opt; // toggle
