@@ -968,11 +968,11 @@ function openShipmentModal(editId){
 // ── EXPORT ORDERS ─────────────────────────────────────────────────────────
 function openExport(rows,title){
   document.getElementById('extit').textContent=title;
-  var hdr=['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli'];
+  var hdr=['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'];
   var txt=[hdr].concat(rows.map(function(o){return[
     USERS[o.userId]?USERS[o.userId].label:o.userId,
     o.locale, o.luogo, o.merce,
-    o.sigilli||''
+    o.sigilli||'', o.note||''
   ];})).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
