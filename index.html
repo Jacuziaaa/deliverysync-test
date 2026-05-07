@@ -342,6 +342,9 @@ textarea{resize:none;}
         <button id="week-next" style="font-size:22px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface);border:1.5px solid var(--border);">›</button>
       </div>
       <div id="dlist"></div>
+      <div style="margin-top:16px;">
+        <button id="reset-all-btn" style="width:100%;padding:11px;border-radius:12px;font-size:12px;font-weight:700;color:var(--red);background:var(--surface);border:1.5px solid #fca5a5;cursor:pointer;">🗑 Azzera tutti gli ordini</button>
+      </div>
     </div>
 
     <!-- DAY VIEW -->
@@ -1026,6 +1029,19 @@ function exitSelMode(){selMode=false;selIds={};document.getElementById('selbar')
 
 // ── EVENTS ────────────────────────────────────────────────────────────────
 // Week navigation
+// Reset ALL orders
+document.getElementById('reset-all-btn').addEventListener('click',function(){
+  confirm('Eliminare TUTTI gli ordini dal database? Questa operazione è irreversibile.',function(){
+    confirm('Sei assolutamente sicuro? Verranno eliminati tutti gli ordini di tutte le settimane.',function(){
+      var allIds = S.orders.map(function(o){return o.id;});
+      if(!allIds.length){toast('Nessun ordine da eliminare');return;}
+      Promise.all(allIds.map(function(id){return ocol.doc(id).delete();}))
+        .then(function(){toast(allIds.length+' ordini eliminati 🗑️');})
+        .catch(function(e){toast('Errore: '+e.message,'err');});
+    });
+  });
+});
+
 document.getElementById('week-prev').addEventListener('click',function(){
   S.week = weekKeyOffset(S.week || currentWeekKey(), -1);
   renderHome();
