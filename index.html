@@ -317,7 +317,8 @@ textarea{resize:none;}
 <div id="app">
   <div id="hdr">
     <div id="hleft"><button id="back">‹</button><div><div id="htitle">DeliverySync</div><div id="hsub"></div></div></div>
-    <div id="hright"><span id="enc">🔐 AES-256</span><div id="upill"></div><button class="hb" id="logbtn">↩</button></div>
+    <div id="hright"><span id="enc">🔐 AES-256</span>
+      <button id="reset-all-btn" title="Azzera tutti gli ordini" style="font-size:11px;font-weight:700;color:var(--red);padding:3px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid #fca5a5;cursor:pointer;line-height:1;">🗑</button><div id="upill"></div><button class="hb" id="logbtn">↩</button></div>
   </div>
   <div id="conn"></div>
   <div id="main">
@@ -342,9 +343,6 @@ textarea{resize:none;}
         <button id="week-next" style="font-size:22px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface);border:1.5px solid var(--border);">›</button>
       </div>
       <div id="dlist"></div>
-      <div style="margin-top:16px;">
-        <button id="reset-all-btn" style="width:100%;padding:11px;border-radius:12px;font-size:12px;font-weight:700;color:var(--red);background:var(--surface);border:1.5px solid #fca5a5;cursor:pointer;">🗑 Azzera tutti gli ordini</button>
-      </div>
     </div>
 
     <!-- DAY VIEW -->
