@@ -240,9 +240,9 @@ textarea{resize:none;}
     <div class="mbody">
       <div class="fg"><label class="flbl">Giorno di consegna</label><div class="dpick" id="dpick"></div></div>
       <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
-      <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="floc" placeholder=""></div>
-      <div class="fg"><label class="flbl">📍 Luogo Consegna *</label><input class="finp" id="fluo" placeholder=""></div>
-      <div class="fg"><label class="flbl">📦 Articoli *</label><textarea class="finp fta" id="fmer" placeholder=""></textarea></div>
+      <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="floc" placeholder=""></div>
+      <div class="fg"><label class="flbl">📍 Luogo Consegna</label><input class="finp" id="fluo" placeholder=""></div>
+      <div class="fg"><label class="flbl">📦 Articoli</label><textarea class="finp fta" id="fmer" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">🔒 Tipologia Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="osig-pick"></div>
@@ -258,7 +258,7 @@ textarea{resize:none;}
     <div class="mhead"><span class="mtitle" id="smtit">Nuova Spedizione</span><button class="mclose" id="smcl">✕</button></div>
     <div class="mbody">
       <div class="fg" id="srepgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="srpick"></div></div>
-      <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="sloc" placeholder=""></div>
+      <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="sloc" placeholder=""></div>
       <div class="fg">
         <label class="flbl">📨 Canale ricezione</label>
         <div class="chan-pick">
@@ -266,7 +266,7 @@ textarea{resize:none;}
           <button class="ctog" id="ctog-m" data-chan="M">✉️ M</button>
         </div>
       </div>
-      <div class="fg"><label class="flbl">📦 Articoli *</label><textarea class="finp fta" id="smer" placeholder=""></textarea></div>
+      <div class="fg"><label class="flbl">📦 Articoli</label><textarea class="finp fta" id="smer" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">🔒 Tipologia Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ssig-pick"></div>
@@ -969,7 +969,11 @@ function openShipmentModal(editId){
 function openExport(rows,title){
   document.getElementById('extit').textContent=title;
   var hdr=['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli'];
-  var txt=[hdr].concat(rows.map(function(o){return[USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale,o.luogo,o.merce,o.sigilli||'',o.note||''];})).map(function(r){return r.join('\t');}).join('\n');
+  var txt=[hdr].concat(rows.map(function(o){return[
+    USERS[o.userId]?USERS[o.userId].label:o.userId,
+    o.locale, o.luogo, o.merce,
+    o.sigilli||''
+  ];})).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
   cb.onclick=function(){navigator.clipboard.writeText(txt).catch(function(){document.getElementById('exta').select();document.execCommand('copy');});cb.textContent='✓ Copiato!';setTimeout(function(){cb.textContent='📋 Copia negli appunti';},2500);};
@@ -978,11 +982,15 @@ function openExport(rows,title){
 
 // ── EXPORT SHIPMENTS ──────────────────────────────────────────────────────
 function exportShipments(rows){
-  var hdr=['Azienda','Nome Locale','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso','Etichetta','Pronto','Spedito'];
+  var hdr=['Azienda','Nome Locale','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso cliente','Etichetta spedizione','Pacco pronto','Spedito'];
   var txt=[hdr].concat(rows.map(function(s){
     return[
       USERS[s.userId]?USERS[s.userId].label:s.userId,
-      s.locale,s.canale==='W'?'W':'M',s.merce,s.sigilli||'',s.pagamento||'',
+      s.locale,
+      s.canale||'',
+      s.merce,
+      s.sigilli||'',
+      s.pagamento||'',
       s.proforma?'X':'',s.fattura?'X':'',s.pagato?'X':'',
       s.avviso?'X':'',s.etichetta?'X':'',s.pacco?'X':'',s.spedito?'X':''
     ];
