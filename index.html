@@ -274,13 +274,12 @@ textarea{resize:none;}
       <div class="fg">
         <label class="flbl">💳 Pagamento</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="spag-pick"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;" id="spag-extra"></div>
       </div>
 
       <div class="fg">
         <label class="flbl">📋 Stato spedizione</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-chips-form">
-          <button class="chip" id="fchip-proforma"  data-field="proforma">Proforma</button>
-          <button class="chip" id="fchip-fattura"   data-field="fattura">Fattura</button>
           <button class="chip" id="fchip-avviso"    data-field="avviso">Avviso</button>
           <button class="chip" id="fchip-pagato"    data-field="pagato">Pagato</button>
           <button class="chip" id="fchip-etichetta" data-field="etichetta">Etichetta</button>
@@ -412,14 +411,13 @@ var USERS = {
   JP_EMPIRE: {id:'JP_EMPIRE', label:'JP Empire', color:'#7c5cdb',bg:'#f0ecfc',emoji:'🟣'}
 };
 var SHIP_FIELDS = [
-  {k:'proforma',  l:'Proforma'},
-  {k:'fattura',   l:'Fattura'},
   {k:'avviso',    l:'Avviso'},
   {k:'pagato',    l:'Pagato'},
   {k:'etichetta', l:'Etichetta'},
   {k:'pacco',     l:'Pronto'},
   {k:'spedito',   l:'Spedito'}
 ];
+var PAG_EXTRA = [{k:'proforma', l:'Proforma'}, {k:'fattura', l:'Fattura'}];
 var SIGILLI_OPTS = ['Bianchi', 'Pers. om.', 'Pers. €'];
 var PAG_OPTS     = ['Bonifico', 'Contrassegno', 'Paypal'];
 var SK = 'ds_cpw';
@@ -825,7 +823,7 @@ function renderShipments(){
       '<div class="sc-head"><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
       '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+
-      '<div class="sc-meta">'+chanBadge+(s.pagamento?'<span style="font-size:11px;color:var(--sub);">💳 '+esc(s.pagamento)+'</span>':'')+'</div>'+
+      '<div class="sc-meta">'+chanBadge+(s.pagamento?'<span style="font-size:11px;color:var(--sub);">💳 '+esc(s.pagamento)+'</span>':'')+(s.proforma?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Proforma ✓</span>':'')+(s.fattura?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Fattura ✓</span>':'')+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
       (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
       '<div class="chips">'+chipsHtml+'</div>';
@@ -901,7 +899,23 @@ function openShipmentModal(editId){
   var selSSig = ship?ship.sigilli:'';
   var selSpag = ship?ship.pagamento:'';
   buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
-  buildChipPicker('spag-pick', PAG_OPTS,     selSpag, u.color, u.bg, function(v){selSpag=v;});
+  buildChipPicker('spag-pick', PAG_OPTS, selSpag, u.color, u.bg, function(v){selSpag=v;});
+  // Proforma e Fattura: toggle indipendenti nella sezione pagamento
+  function renderPagExtra(){
+    var container=document.getElementById('spag-extra');
+    if(!container)return;
+    container.innerHTML='';
+    PAG_EXTRA.forEach(function(f){
+      var btn=document.createElement('button');
+      var isOn=chipState[f.k]||false;
+      btn.className='chip'+(isOn?' on':'');
+      if(isOn){btn.style.background=u.bg;btn.style.color=u.color;btn.style.borderColor=u.color+'55';}
+      btn.textContent=f.l+(isOn?' ✓':'');
+      btn.onclick=function(){chipState[f.k]=!chipState[f.k];renderPagExtra();};
+      container.appendChild(btn);
+    });
+  }
+  renderPagExtra();
   document.getElementById('srepgrp').style.display=isEdit?'flex':'none';
 
   // Chan picker
