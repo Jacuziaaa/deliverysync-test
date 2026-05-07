@@ -242,7 +242,7 @@ textarea{resize:none;}
       <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
       <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="floc" placeholder=""></div>
       <div class="fg"><label class="flbl">📍 Luogo Consegna *</label><input class="finp" id="fluo" placeholder=""></div>
-      <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="fmer" placeholder=""></textarea></div>
+      <div class="fg"><label class="flbl">📦 Articoli *</label><textarea class="finp fta" id="fmer" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">🔒 Tipologia Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="osig-pick"></div>
@@ -262,11 +262,11 @@ textarea{resize:none;}
       <div class="fg">
         <label class="flbl">📨 Canale ricezione</label>
         <div class="chan-pick">
-          <button class="ctog" id="ctog-w" data-chan="W">📱 WhatsApp</button>
-          <button class="ctog" id="ctog-m" data-chan="M">✉️ Mail</button>
+          <button class="ctog" id="ctog-w" data-chan="W">📱 W</button>
+          <button class="ctog" id="ctog-m" data-chan="M">✉️ M</button>
         </div>
       </div>
-      <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="smer" placeholder=""></textarea></div>
+      <div class="fg"><label class="flbl">📦 Articoli *</label><textarea class="finp fta" id="smer" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">🔒 Tipologia Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ssig-pick"></div>
@@ -281,10 +281,10 @@ textarea{resize:none;}
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-chips-form">
           <button class="chip" id="fchip-proforma"  data-field="proforma">Proforma</button>
           <button class="chip" id="fchip-fattura"   data-field="fattura">Fattura</button>
-          <button class="chip" id="fchip-avviso"    data-field="avviso">Avviso cliente</button>
+          <button class="chip" id="fchip-avviso"    data-field="avviso">Avviso</button>
           <button class="chip" id="fchip-pagato"    data-field="pagato">Pagato</button>
-          <button class="chip" id="fchip-etichetta" data-field="etichetta">Etichetta spedizione</button>
-          <button class="chip" id="fchip-pacco"     data-field="pacco">Pacco pronto</button>
+          <button class="chip" id="fchip-etichetta" data-field="etichetta">Etichetta</button>
+          <button class="chip" id="fchip-pacco"     data-field="pacco">Pronto</button>
           <button class="chip" id="fchip-spedito"   data-field="spedito">Spedito</button>
         </div>
       </div>
@@ -414,13 +414,13 @@ var USERS = {
 var SHIP_FIELDS = [
   {k:'proforma',  l:'Proforma'},
   {k:'fattura',   l:'Fattura'},
-  {k:'avviso',    l:'Avviso cliente'},
+  {k:'avviso',    l:'Avviso'},
   {k:'pagato',    l:'Pagato'},
-  {k:'etichetta', l:'Etichetta spedizione'},
-  {k:'pacco',     l:'Pacco pronto'},
+  {k:'etichetta', l:'Etichetta'},
+  {k:'pacco',     l:'Pronto'},
   {k:'spedito',   l:'Spedito'}
 ];
-var SIGILLI_OPTS = ['Bianchi', 'Personalizzati omaggio', 'Personalizzati a pagamento'];
+var SIGILLI_OPTS = ['Bianchi', 'Pers. om.', 'Pers. €'];
 var PAG_OPTS     = ['Bonifico', 'Contrassegno', 'Paypal'];
 var SK = 'ds_cpw';
 
@@ -816,7 +816,7 @@ function renderShipments(){
   ships.forEach(function(s){
     var u=USERS[s.userId]||USERS.FRAMEZZINO;
     var card=document.createElement('div');card.className='sc';card.style.borderLeftColor=u.color;
-    var chanBadge=s.canale==='W'?'<span class="chan-badge chan-w">📱 WhatsApp</span>':'<span class="chan-badge chan-m">✉️ Mail</span>';
+    var chanBadge=s.canale==='W'?'<span class="chan-badge chan-w">📱 W</span>':'<span class="chan-badge chan-m">✉️ M</span>';
     var chipsHtml=SHIP_FIELDS.map(function(f){
       return '<span class="chip'+(s[f.k]?' on':'')+'" data-id="'+s.id+'" data-field="'+f.k+'">'+f.l+(s[f.k]?' ✓':'')+'</span>';
     }).join('');
@@ -970,7 +970,7 @@ function openShipmentModal(editId){
 // ── EXPORT ORDERS ─────────────────────────────────────────────────────────
 function openExport(rows,title){
   document.getElementById('extit').textContent=title;
-  var hdr=['Azienda','Nome Locale','Luogo Consegna','Merce / Quantità','Sigilli','Note'];
+  var hdr=['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'];
   var txt=[hdr].concat(rows.map(function(o){return[USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale,o.luogo,o.merce,o.sigilli||'',o.note||''];})).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
@@ -980,11 +980,11 @@ function openExport(rows,title){
 
 // ── EXPORT SHIPMENTS ──────────────────────────────────────────────────────
 function exportShipments(rows){
-  var hdr=['Azienda','Nome Locale','Canale','Merce / Quantità','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso cliente','Etichetta spedizione','Pacco pronto','Spedito','Note'];
+  var hdr=['Azienda','Nome Locale','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso','Etichetta','Pronto','Spedito','Note'];
   var txt=[hdr].concat(rows.map(function(s){
     return[
       USERS[s.userId]?USERS[s.userId].label:s.userId,
-      s.locale,s.canale==='W'?'WhatsApp':'Mail',s.merce,s.sigilli||'',s.pagamento||'',
+      s.locale,s.canale==='W'?'W':'M',s.merce,s.sigilli||'',s.pagamento||'',
       s.proforma?'X':'',s.fattura?'X':'',s.pagato?'X':'',
       s.avviso?'X':'',s.etichetta?'X':'',s.pacco?'X':'',s.spedito?'X':'',s.note||''
     ];
