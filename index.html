@@ -982,7 +982,7 @@ function openExport(rows,title){
 
 // ── EXPORT SHIPMENTS ──────────────────────────────────────────────────────
 function exportShipments(rows){
-  var hdr=['Azienda','Nome Locale','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso cliente','Etichetta spedizione','Pacco pronto','Spedito'];
+  var hdr=['Azienda','Nome Locale','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso','Etichetta','Pronto','Spedito'];
   var txt=[hdr].concat(rows.map(function(s){
     return[
       USERS[s.userId]?USERS[s.userId].label:s.userId,
