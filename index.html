@@ -760,10 +760,12 @@ function renderHome(){
   document.getElementById('week-range').textContent = formatWeekRange(wk);
   var isCurrent = wk === currentWeekKey();
   document.getElementById('week-badge').textContent = isCurrent ? '● Settimana corrente' : '';
-  document.getElementById('st').textContent=o.length;
+  // Summary conta TUTTI gli ordini di tutte le settimane
+  var allO = S.orders;
+  document.getElementById('st').textContent=allO.length;
   document.getElementById('ss').textContent=sh.length;
-  document.getElementById('sf').textContent=o.filter(function(x){return x.userId==='FRAMEZZINO';}).length+sh.filter(function(x){return x.userId==='FRAMEZZINO';}).length;
-  document.getElementById('sj').textContent=o.filter(function(x){return x.userId==='JP_EMPIRE';}).length+sh.filter(function(x){return x.userId==='JP_EMPIRE';}).length;
+  document.getElementById('sf').textContent=allO.filter(function(x){return x.userId==='FRAMEZZINO';}).length+sh.filter(function(x){return x.userId==='FRAMEZZINO';}).length;
+  document.getElementById('sj').textContent=allO.filter(function(x){return x.userId==='JP_EMPIRE';}).length+sh.filter(function(x){return x.userId==='JP_EMPIRE';}).length;
   var list=document.getElementById('dlist');list.innerHTML='';
   var me=USERS[S.uid],other=USERS[S.uid==='FRAMEZZINO'?'JP_EMPIRE':'FRAMEZZINO'];
   DAYS.forEach(function(d){
