@@ -900,22 +900,6 @@ function openShipmentModal(editId){
   var selSpag = ship?ship.pagamento:'';
   buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
   buildChipPicker('spag-pick', PAG_OPTS, selSpag, u.color, u.bg, function(v){selSpag=v;});
-  // Proforma e Fattura: toggle indipendenti nella sezione pagamento
-  function renderPagExtra(){
-    var container=document.getElementById('spag-extra');
-    if(!container)return;
-    container.innerHTML='';
-    PAG_EXTRA.forEach(function(f){
-      var btn=document.createElement('button');
-      var isOn=chipState[f.k]||false;
-      btn.className='chip'+(isOn?' on':'');
-      if(isOn){btn.style.background=u.bg;btn.style.color=u.color;btn.style.borderColor=u.color+'55';}
-      btn.textContent=f.l+(isOn?' ✓':'');
-      btn.onclick=function(){chipState[f.k]=!chipState[f.k];renderPagExtra();};
-      container.appendChild(btn);
-    });
-  }
-  renderPagExtra();
   document.getElementById('srepgrp').style.display=isEdit?'flex':'none';
 
   // Chan picker
@@ -946,6 +930,22 @@ function openShipmentModal(editId){
   PAG_EXTRA.forEach(function(f){
     chipState[f.k] = ship ? (ship[f.k]||false) : false;
   });
+  // Proforma e Fattura: toggle indipendenti nella sezione pagamento
+  function renderPagExtra(){
+    var container=document.getElementById('spag-extra');
+    if(!container)return;
+    container.innerHTML='';
+    PAG_EXTRA.forEach(function(f){
+      var btn=document.createElement('button');
+      var isOn=chipState[f.k]||false;
+      btn.className='chip'+(isOn?' on':'');
+      if(isOn){btn.style.background=u.bg;btn.style.color=u.color;btn.style.borderColor=u.color+'55';}
+      btn.textContent=f.l+(isOn?' ✓':'');
+      btn.onclick=function(){chipState[f.k]=!chipState[f.k];renderPagExtra();};
+      container.appendChild(btn);
+    });
+  }
+  renderPagExtra();
   function updateFormChips(){
     SHIP_FIELDS.forEach(function(f){
       var chip = document.getElementById('fchip-'+f.k);
