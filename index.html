@@ -939,7 +939,7 @@ function openShipmentModal(editId){
       var btn=document.createElement('button');
       var isOn=chipState[f.k]||false;
       btn.className='chip'+(isOn?' on':'');
-      if(isOn){btn.style.background=u.bg;btn.style.color=u.color;btn.style.borderColor=u.color+'55';}
+      if(isOn){btn.style.background='var(--gbg)';btn.style.color='var(--green)';btn.style.borderColor='#16a87a55';}
       btn.textContent=f.l+(isOn?' ✓':'');
       btn.onclick=function(){chipState[f.k]=!chipState[f.k];renderPagExtra();};
       container.appendChild(btn);
