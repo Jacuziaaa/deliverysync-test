@@ -334,7 +334,14 @@ textarea{resize:none;}
         <div class="sdiv"></div>
         <div class="scell"><span class="sn" id="sj" style="color:var(--violet)">0</span><span class="sl">JP Empire</span></div>
       </div>
-      <div id="wlbl">Settimana corrente</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 10px;">
+        <button id="week-prev" style="font-size:22px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface);border:1.5px solid var(--border);">‹</button>
+        <div style="text-align:center;flex:1;margin:0 8px;">
+          <div id="week-range" style="font-size:13px;font-weight:700;color:var(--text);"></div>
+          <div id="week-badge" style="font-size:10px;font-weight:700;color:var(--green);letter-spacing:.5px;margin-top:2px;"></div>
+        </div>
+        <button id="week-next" style="font-size:22px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface);border:1.5px solid var(--border);">›</button>
+      </div>
       <div id="dlist"></div>
     </div>
 
@@ -417,7 +424,7 @@ var SIGILLI_OPTS = ['Bianchi', 'Personalizzati omaggio', 'Personalizzati a pagam
 var PAG_OPTS     = ['Bonifico', 'Contrassegno', 'Paypal'];
 var SK = 'ds_cpw';
 
-var S = {uid:null, orders:[], shipments:[], day:null, tab:'home'};
+var S = {uid:null, orders:[], shipments:[], day:null, tab:'home', week:null};
 var CKEY = null;
 var unsub1 = null, unsub2 = null;
 var selMode = false, selIds = {};
@@ -485,13 +492,16 @@ var SHIP_TEXT_FIELDS  = ['locale','canale','merce','sigilli','pagamento','note',
 function encOrder(o,cb){
   encFields(o,ORDER_TEXT_FIELDS,{
     createdAt:o.createdAt||new Date().toISOString(),
-    updatedAt:o.updatedAt||null,v:2
+    updatedAt:o.updatedAt||null,
+    weekKey:o.weekKey||currentWeekKey(),
+    v:2
   },cb);
 }
 function decOrder(id,d,cb){
   decFields(id,d,ORDER_TEXT_FIELDS,function(err,r){
     if(err){cb(err,null);return;}
     r.createdAt=d.createdAt; r.updatedAt=d.updatedAt;
+    r.weekKey=d.weekKey||null; // weekKey not encrypted
     cb(null,r);
   });
 }
@@ -583,6 +593,51 @@ function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, o
 }
 function hideLoader(){document.getElementById('loader').style.display='none';}
 
+// ── WEEK HELPERS ──────────────────────────────────────────────────────────────
+function getWeekKey(date) {
+  // Returns "YYYY-WNN" based on Monday-start week
+  var d = new Date(date);
+  d.setHours(0,0,0,0);
+  // Set to nearest Monday
+  var day = d.getDay() || 7;
+  d.setDate(d.getDate() - day + 1);
+  var year = d.getFullYear();
+  var start = new Date(year, 0, 1);
+  var week = Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7);
+  return year + '-W' + String(week).padStart(2,'0');
+}
+
+function getWeekStart(weekKey) {
+  // Returns Monday Date for a given weekKey
+  var parts = weekKey.split('-W');
+  var year = parseInt(parts[0]);
+  var week = parseInt(parts[1]);
+  var jan1 = new Date(year, 0, 1);
+  var jan1Day = jan1.getDay() || 7;
+  var mondayOffset = (jan1Day <= 4) ? (1 - jan1Day) : (8 - jan1Day);
+  var firstMonday = new Date(year, 0, 1 + mondayOffset);
+  var monday = new Date(firstMonday);
+  monday.setDate(firstMonday.getDate() + (week - 1) * 7);
+  return monday;
+}
+
+function weekKeyOffset(weekKey, offset) {
+  var monday = getWeekStart(weekKey);
+  monday.setDate(monday.getDate() + offset * 7);
+  return getWeekKey(monday);
+}
+
+function formatWeekRange(weekKey) {
+  var monday = getWeekStart(weekKey);
+  var sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  var months = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  var mStart = monday.getDate()+' '+months[monday.getMonth()];
+  var mEnd   = sunday.getDate()+' '+months[sunday.getMonth()]+' '+sunday.getFullYear();
+  return mStart+' – '+mEnd;
+}
+
+function currentWeekKey() { return getWeekKey(new Date()); }
+
 // ── SCREENS ───────────────────────────────────────────────────────────────
 function showLogin(){
   hideLoader();
@@ -612,6 +667,7 @@ function showApp(uid){
   p.textContent=u.emoji+' '+u.label;
   p.style.cssText='color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;';
   document.getElementById('fab').style.background=u.color;
+  S.week = currentWeekKey();
   switchTab('home');
 }
 
@@ -620,6 +676,7 @@ function switchTab(tab){
   document.querySelectorAll('.bnavbtn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('bnav-'+tab).classList.add('active');
   document.getElementById('bnav').classList.add('show'); // mostra sempre bottom nav nelle tab principali
+  if(tab==='home' && !S.week) S.week = currentWeekKey();
   if(tab==='home'){
     showScr('home');
     document.getElementById('back').style.display='none';
@@ -646,7 +703,7 @@ function showScr(id){
 }
 
 function openDay(dayKey){
-  S.day=dayKey; selMode=false; selIds={};
+  S.day=dayKey; S.dayWeek=S.week; selMode=false; selIds={};
   document.getElementById('selbar').style.display='none';
   document.getElementById('back').style.display='block';
   document.getElementById('fab').classList.add('show');
@@ -696,7 +753,13 @@ function startListen(){
 
 // ── HOME ──────────────────────────────────────────────────────────────────
 function renderHome(){
-  var o=S.orders,sh=S.shipments;
+  var wk = S.week || currentWeekKey();
+  var o  = S.orders.filter(function(x){ return (x.weekKey||currentWeekKey()) === wk; });
+  var sh = S.shipments;
+  // Update week navigation UI
+  document.getElementById('week-range').textContent = formatWeekRange(wk);
+  var isCurrent = wk === currentWeekKey();
+  document.getElementById('week-badge').textContent = isCurrent ? '● Settimana corrente' : '';
   document.getElementById('st').textContent=o.length;
   document.getElementById('ss').textContent=sh.length;
   document.getElementById('sf').textContent=o.filter(function(x){return x.userId==='FRAMEZZINO';}).length+sh.filter(function(x){return x.userId==='FRAMEZZINO';}).length;
@@ -716,12 +779,13 @@ function renderHome(){
     list.appendChild(row);
   });
   list.querySelectorAll('.dcard').forEach(function(b){b.addEventListener('click',function(){openDay(b.dataset.k);});});
-  list.querySelectorAll('.qadd').forEach(function(b){b.addEventListener('click',function(){openOrderModal(null,b.dataset.k);});});
+  list.querySelectorAll('.qadd').forEach(function(b){b.addEventListener('click',function(){S.dayWeek=S.week;openOrderModal(null,b.dataset.k);});});
 }
 
 // ── DAY ───────────────────────────────────────────────────────────────────
 function renderDay(){
-  var sorted=S.orders.filter(function(o){return o.day===S.day;}).sort(function(a,b){return (a.luogo||'').localeCompare(b.luogo||'','it');});
+  var dayWk = S.dayWeek || currentWeekKey();
+  var sorted=S.orders.filter(function(o){return o.day===S.day && (o.weekKey||currentWeekKey())===dayWk;}).sort(function(a,b){return (a.luogo||'').localeCompare(b.luogo||'','it');});
   document.getElementById('dtlbl').textContent=sorted.length+' ordini · A→Z per luogo';
   document.getElementById('sellbl').textContent=Object.keys(selIds).length+' selezionati';
   var list=document.getElementById('olist');list.innerHTML='';
@@ -812,8 +876,8 @@ function openOrderModal(editId,defDay){
     var locale=document.getElementById('floc').value.trim(),luogo=document.getElementById('fluo').value.trim(),merce=document.getElementById('fmer').value.trim();
     if(!locale||!luogo||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
-    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep};
-    if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();}
+    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:S.dayWeek||S.week||currentWeekKey()};
+    if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();payload.weekKey=order.weekKey||currentWeekKey();}
     else{payload.createdAt=new Date().toISOString();}
     encOrder(payload,function(err,enc){
       if(err){toast('Errore cifratura','err');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;return;}
@@ -935,6 +999,16 @@ function enterSelMode(){selMode=true;selIds={};document.getElementById('selbar')
 function exitSelMode(){selMode=false;selIds={};document.getElementById('selbar').style.display='none';renderDay();}
 
 // ── EVENTS ────────────────────────────────────────────────────────────────
+// Week navigation
+document.getElementById('week-prev').addEventListener('click',function(){
+  S.week = weekKeyOffset(S.week || currentWeekKey(), -1);
+  renderHome();
+});
+document.getElementById('week-next').addEventListener('click',function(){
+  S.week = weekKeyOffset(S.week || currentWeekKey(), +1);
+  renderHome();
+});
+
 document.getElementById('eye1').addEventListener('click',function(){var i=document.getElementById('lpw');i.type=i.type==='password'?'text':'password';});
 document.getElementById('eye2').addEventListener('click',function(){var i=document.getElementById('cpw');i.type=i.type==='password'?'text':'password';});
 document.getElementById('cpw').addEventListener('input',function(){
