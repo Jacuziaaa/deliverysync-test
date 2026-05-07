@@ -943,6 +943,9 @@ function openShipmentModal(editId){
   SHIP_FIELDS.forEach(function(f){
     chipState[f.k] = ship ? (ship[f.k]||false) : false;
   });
+  PAG_EXTRA.forEach(function(f){
+    chipState[f.k] = ship ? (ship[f.k]||false) : false;
+  });
   function updateFormChips(){
     SHIP_FIELDS.forEach(function(f){
       var chip = document.getElementById('fchip-'+f.k);
