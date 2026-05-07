@@ -229,7 +229,7 @@ textarea{resize:none;}
 <div id="toast"></div>
 <div id="fab">+</div>
 
-<div id="cfov"><div id="cfbox"><p id="cfmsg"></p><div id="cfbtns"><button id="cfyes">Sì, elimina</button><button id="cfno">Annulla</button></div></div></div>
+<div id="cfov"><div id="cfbox"><p id="cfmsg"></p><div id="cfbtns"><button id="cfyes">Sì</button><button id="cfno">Annulla</button></div></div></div>
 
 <!-- OVERLAY -->
 <div id="ov">
@@ -240,14 +240,14 @@ textarea{resize:none;}
     <div class="mbody">
       <div class="fg"><label class="flbl">Giorno di consegna</label><div class="dpick" id="dpick"></div></div>
       <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
-      <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="floc" placeholder="es. Bar Milano…"></div>
-      <div class="fg"><label class="flbl">📍 Luogo Consegna *</label><input class="finp" id="fluo" placeholder="es. Via Roma 12, Venezia"></div>
-      <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="fmer" placeholder="es. 3 cassette birra…"></textarea></div>
+      <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="floc" placeholder=""></div>
+      <div class="fg"><label class="flbl">📍 Luogo Consegna *</label><input class="finp" id="fluo" placeholder=""></div>
+      <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="fmer" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">🔒 Tipologia Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="osig-pick"></div>
       </div>
-      <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="fnot" placeholder="Informazioni utili…"></textarea></div>
+      <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="fnot" placeholder=""></textarea></div>
       <button id="sbtn">Salva Ordine</button>
     </div>
   </div>
@@ -258,7 +258,7 @@ textarea{resize:none;}
     <div class="mhead"><span class="mtitle" id="smtit">Nuova Spedizione</span><button class="mclose" id="smcl">✕</button></div>
     <div class="mbody">
       <div class="fg" id="srepgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="srpick"></div></div>
-      <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="sloc" placeholder="es. Bar Milano…"></div>
+      <div class="fg"><label class="flbl">🏪 Nome Locale *</label><input class="finp" id="sloc" placeholder=""></div>
       <div class="fg">
         <label class="flbl">📨 Canale ricezione</label>
         <div class="chan-pick">
@@ -266,7 +266,7 @@ textarea{resize:none;}
           <button class="ctog" id="ctog-m" data-chan="M">✉️ Mail</button>
         </div>
       </div>
-      <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="smer" placeholder="es. 3 cassette birra…"></textarea></div>
+      <div class="fg"><label class="flbl">📦 Merce e Quantità *</label><textarea class="finp fta" id="smer" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">🔒 Tipologia Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ssig-pick"></div>
@@ -275,7 +275,7 @@ textarea{resize:none;}
         <label class="flbl">💳 Tipo Pagamento</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="spag-pick"></div>
       </div>
-      <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="snot" placeholder="Informazioni utili…"></textarea></div>
+      <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="snot" placeholder=""></textarea></div>
       <div class="fg">
         <label class="flbl">📋 Stato spedizione</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-chips-form">
