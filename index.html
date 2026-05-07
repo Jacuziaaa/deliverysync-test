@@ -897,7 +897,6 @@ function openShipmentModal(editId){
   document.getElementById('smtit').textContent=isEdit?'Modifica Spedizione':'Nuova Spedizione';
   document.getElementById('sloc').value=ship?ship.locale:'';
   document.getElementById('smer').value=ship?ship.merce:'';
-  document.getElementById('snot').value=ship?ship.note:'';
   var selSSig = ship?ship.sigilli:'';
   var selSpag = ship?ship.pagamento:'';
   buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
