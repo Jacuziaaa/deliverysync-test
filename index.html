@@ -281,7 +281,6 @@ textarea{resize:none;}
         <label class="flbl">📋 Stato spedizione</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;" id="status-chips-form">
           <button class="chip" id="fchip-avviso"    data-field="avviso">Avviso</button>
-          <button class="chip" id="fchip-pagato"    data-field="pagato">Pagato</button>
           <button class="chip" id="fchip-etichetta" data-field="etichetta">Etichetta</button>
           <button class="chip" id="fchip-pacco"     data-field="pacco">Pronto</button>
           <button class="chip" id="fchip-spedito"   data-field="spedito">Spedito</button>
@@ -413,12 +412,11 @@ var USERS = {
 };
 var SHIP_FIELDS = [
   {k:'avviso',    l:'Avviso'},
-  {k:'pagato',    l:'Pagato'},
   {k:'etichetta', l:'Etichetta'},
   {k:'pacco',     l:'Pronto'},
   {k:'spedito',   l:'Spedito'}
 ];
-var PAG_EXTRA = [{k:'proforma', l:'Proforma'}, {k:'fattura', l:'Fattura'}];
+var PAG_EXTRA = [{k:'proforma', l:'Proforma'}, {k:'fattura', l:'Fattura'}, {k:'pagato', l:'Pagato'}];
 var SIGILLI_OPTS = ['Bianchi', 'Pers. om.', 'Pers. €'];
 var PAG_OPTS     = ['Bonifico', 'Contrassegno', 'Paypal'];
 var SK = 'ds_cpw';
