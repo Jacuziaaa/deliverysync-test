@@ -505,6 +505,7 @@ function decOrder(id,d,cb){
 function encShipment(o,cb){
   var bools={};
   SHIP_FIELDS.forEach(function(f){bools[f.k]=o[f.k]||false;});
+  PAG_EXTRA.forEach(function(f){bools[f.k]=o[f.k]||false;});
   encFields(o,SHIP_TEXT_FIELDS,Object.assign(bools,{
     createdAt:o.createdAt||new Date().toISOString(),
     updatedAt:o.updatedAt||null,v:1
@@ -514,6 +515,7 @@ function decShipment(id,d,cb){
   decFields(id,d,SHIP_TEXT_FIELDS,function(err,r){
     if(err){cb(err,null);return;}
     SHIP_FIELDS.forEach(function(f){r[f.k]=d[f.k]||false;});
+    PAG_EXTRA.forEach(function(f){r[f.k]=d[f.k]||false;});
     r.createdAt=d.createdAt; r.updatedAt=d.updatedAt;
     cb(null,r);
   });
@@ -822,7 +824,7 @@ function renderShipments(){
       '<div class="sc-head"><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
       '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+
-      '<div class="sc-meta">'+chanBadge+(s.pagamento?'<span style="font-size:11px;color:var(--sub);">💳 '+esc(s.pagamento)+'</span>':'')+(s.proforma?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Proforma ✓</span>':'')+(s.fattura?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Fattura ✓</span>':'')+'</div>'+
+      '<div class="sc-meta">'+chanBadge+(s.pagamento?'<span style="font-size:11px;color:var(--sub);">💳 '+esc(s.pagamento)+'</span>':'')+(s.proforma?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Proforma ✓</span>':'')+(s.fattura?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Fattura ✓</span>':'')+(s.pagato?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Pagato ✓</span>':'')+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
       (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
       '<div class="chips">'+chipsHtml+'</div>';
@@ -968,7 +970,7 @@ function openShipmentModal(editId){
     var locale=document.getElementById('sloc').value.trim(),merce=document.getElementById('smer').value.trim();
     if(!locale||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
-    var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
+    var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});PAG_EXTRA.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
     var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:selSSig||'',pagamento:selSpag||'',userId:selRep},bools);
     if(isEdit){payload.createdAt=ship.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
