@@ -136,6 +136,7 @@ textarea{resize:none;}
 /* STATUS CHIPS */
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
 .chip{font-size:13px;font-weight:700;padding:8px 13px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;user-select:none;}
+.sc .chip{font-size:10px;font-weight:700;padding:3px 9px;border-radius:14px;}
 .chip.on{background:var(--gbg);color:var(--green);border-color:#16a87a55;}
 
 /* SHIPMENTS TOOLBAR */
@@ -839,8 +840,8 @@ function renderShipments(){
       '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
       (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
-      (pagChips?'<div class="chips" style="margin-top:8px;">'+pagChips+'</div>':'')+
-      '<div class="chips" style="margin-top:6px;">'+statoChips+'</div>';
+      (pagChips?'<div style="margin-top:8px;"><span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;">💳 PAGAMENTO</span><div class="chips" style="margin-top:5px;">'+pagChips+'</div></div>':'')+
+      '<div style="margin-top:6px;"><span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;">📋 STATO</span><div class="chips" style="margin-top:5px;">'+statoChips+'</div></div>';
     list.appendChild(card);
   });
   // Solo edit e delete — nessun toggle chip dalla card
