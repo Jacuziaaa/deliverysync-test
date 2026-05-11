@@ -816,30 +816,34 @@ function renderShipments(){
   ships.forEach(function(s){
     var u=USERS[s.userId]||USERS.FRAMEZZINO;
     var card=document.createElement('div');card.className='sc';card.style.borderLeftColor=u.color;
+
+    // Canale badge
     var chanBadge=s.canale==='W'?'<span class="chan-badge chan-w">📱 W</span>':'<span class="chan-badge chan-m">✉️ M</span>';
-    var chipsHtml=SHIP_FIELDS.map(function(f){
-      return '<span class="chip'+(s[f.k]?' on':'')+'" data-id="'+s.id+'" data-field="'+f.k+'">'+f.l+(s[f.k]?' ✓':'')+'</span>';
+
+    // Chip pagamento (non interattivi): metodo + proforma + fattura + pagato
+    var pagChips='';
+    if(s.pagamento) pagChips+='<span class="chip on" style="pointer-events:none;">'+esc(s.pagamento)+'</span>';
+    PAG_EXTRA.forEach(function(f){
+      pagChips+='<span class="chip'+(s[f.k]?' on':'')+'" style="pointer-events:none;">'+f.l+(s[f.k]?' ✓':'')+'</span>';
+    });
+
+    // Chip stato (non interattivi): Avviso, Etichetta, Pronto, Spedito
+    var statoChips=SHIP_FIELDS.map(function(f){
+      return '<span class="chip'+(s[f.k]?' on':'')+'" style="pointer-events:none;">'+f.l+(s[f.k]?' ✓':'')+'</span>';
     }).join('');
+
     card.innerHTML=
       '<div class="sc-head"><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
       '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+
-      '<div class="sc-meta">'+chanBadge+(s.pagamento?'<span style="font-size:11px;color:var(--sub);">💳 '+esc(s.pagamento)+'</span>':'')+(s.proforma?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Proforma ✓</span>':'')+(s.fattura?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Fattura ✓</span>':'')+(s.pagato?'<span class="chip on" style="font-size:10px;padding:2px 7px;">Pagato ✓</span>':'')+'</div>'+
+      '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
       (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
-      '<div class="chips">'+chipsHtml+'</div>';
+      (pagChips?'<div class="chips" style="margin-top:8px;">'+pagChips+'</div>':'')+
+      '<div class="chips" style="margin-top:6px;">'+statoChips+'</div>';
     list.appendChild(card);
   });
-  // Chip toggle
-  list.querySelectorAll('.chip').forEach(function(chip){
-    chip.addEventListener('click',function(){
-      var id=chip.dataset.id,field=chip.dataset.field;
-      var ship=S.shipments.find(function(s){return s.id===id;});
-      if(!ship)return;
-      var update={};update[field]=!ship[field];update.updatedAt=new Date().toISOString();
-      scol.doc(id).update(update).catch(function(e){toast('Errore: '+e.message,'err');});
-    });
-  });
+  // Solo edit e delete — nessun toggle chip dalla card
   list.querySelectorAll('.sedit').forEach(function(b){b.addEventListener('click',function(){openShipmentModal(b.dataset.id);});});
   list.querySelectorAll('.sdel').forEach(function(b){b.addEventListener('click',function(){var id=b.dataset.id;confirm('Eliminare questa spedizione?',function(){scol.doc(id).delete().then(function(){toast('Spedizione eliminata');});});});});
 }
