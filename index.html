@@ -14,7 +14,7 @@
 :root {
   --bg:#f4f6f9; --surface:#fff; --surface2:#f0f2f5;
   --border:#e2e6ea; --muted:#8a94a0; --text:#1a1f2e; --sub:#555f6e;
-  --green:#f97316; --gbg:#fff7ed; --violet:#0ea5e9; --vbg:#e0f2fe;
+  --green:#f97316; --chip-green:#16a87a; --chip-green-bg:#e6f7f2; --gbg:#fff7ed; --violet:#0ea5e9; --vbg:#e0f2fe;
   --red:#e53935; --amber:#d97706;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
@@ -137,7 +137,7 @@ textarea{resize:none;}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}
 .chip{font-size:13px;font-weight:700;padding:8px 13px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all .15s;user-select:none;}
 .sc .chip{font-size:10px;font-weight:700;padding:3px 9px;border-radius:14px;}
-.chip.on{background:var(--gbg);color:var(--green);border-color:#f9731655;}
+.chip.on{background:var(--chip-green-bg);color:var(--chip-green);border-color:#16a87a55;}
 
 /* SHIPMENTS TOOLBAR */
 #stbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 14px;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
@@ -408,8 +408,8 @@ var DAYS = [
   {k:'dom',l:'Domenica',s:'Dom'}
 ];
 var USERS = {
-  FRAMEZZINO:{id:'FRAMEZZINO',label:'Framezzino',color:'#f97316',bg:'#fff7ed',emoji:'🟢'},
-  JP_EMPIRE: {id:'JP_EMPIRE', label:'JP Empire', color:'#0ea5e9',bg:'#e0f2fe',emoji:'🟣'}
+  FRAMEZZINO:{id:'FRAMEZZINO',label:'Framezzino',color:'#f97316',bg:'#fff7ed',emoji:'🟠'},
+  JP_EMPIRE: {id:'JP_EMPIRE', label:'JP Empire', color:'#0ea5e9',bg:'#e0f2fe',emoji:'🔵'}
 };
 var SHIP_FIELDS = [
   {k:'avviso',    l:'Avviso'},
@@ -582,7 +582,7 @@ function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, o
     var btn = document.createElement('button');
     var isOn = sel === opt;
     btn.className = 'chip' + (isOn ? ' on' : '');
-    if (isOn) { btn.style.background=accentBg; btn.style.color=accentColor; btn.style.borderColor=accentColor+'55'; }
+    if (isOn) { btn.style.background='var(--chip-green-bg)'; btn.style.color='var(--chip-green)'; btn.style.borderColor='#16a87a55'; }
     btn.textContent = opt + (isOn ? ' ✓' : '');
     btn.addEventListener('click', function() {
       sel = (sel === opt) ? null : opt; // toggle
