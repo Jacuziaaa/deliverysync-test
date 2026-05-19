@@ -706,6 +706,7 @@ function switchTab(tab){
     document.getElementById('htitle').textContent='DeliverySync';
     document.getElementById('hsub').textContent='🔐 E2E cifrato · Firebase';
   } else if(tab==='ship'){
+    history.pushState({screen:'ship'},'','');
     showScr('ship');
     document.getElementById('back').style.display='none';
     document.getElementById('fab').classList.add('show');
@@ -726,6 +727,7 @@ function showScr(id){
 
 function openDay(dayKey){
   S.day=dayKey; S.dayWeek=S.week; selMode=false; selIds={};
+  history.pushState({screen:'day',day:dayKey,week:S.week},'','');
   document.getElementById('selbar').style.display='none';
   document.getElementById('back').style.display='block';
   document.getElementById('fab').classList.add('show');
@@ -1272,6 +1274,23 @@ document.getElementById('reset-all-btn').addEventListener('click',function(){
         .catch(function(e){toast('Errore: '+e.message,'err');});
     });
   });
+});
+
+// ── HISTORY / TASTO INDIETRO ─────────────────────────────────────────────
+history.replaceState({screen:'home'},'','');
+
+window.addEventListener('popstate',function(e){
+  var state=e.state;
+  if(!state||state.screen==='home'){
+    if(document.getElementById('sday').classList.contains('show')){
+      selMode=false; selIds={};
+      document.getElementById('selbar').style.display='none';
+      document.getElementById('bnav').classList.add('show');
+      switchTab('home');
+    } else if(document.getElementById('sship').classList.contains('show')){
+      switchTab('home');
+    }
+  }
 });
 
 document.getElementById('week-prev').addEventListener('click',function(){
