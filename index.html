@@ -71,9 +71,6 @@ textarea{resize:none;}
 #conn.ok{display:block;background:#e6f7f2;color:#16a87a;border-bottom:1px solid #16a87a33;}
 #conn.off{display:block;background:#fff8e1;color:var(--amber);border-bottom:1px solid #fcd34d66;}
 
-/* EDIT LOCK BANNER */
-#lock-bar{display:none;padding:8px 16px;font-size:12px;font-weight:700;text-align:center;background:#fff8e1;color:#d97706;border-bottom:1px solid #fcd34d66;flex-shrink:0;}
-#lock-bar.show{display:block;}
 /* BOTTOM NAV */
 #bnav{display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;background:var(--surface);border-top:1.5px solid var(--border);flex-shrink:0;box-shadow:0 -1px 4px rgba(0,0,0,.05);z-index:100;}
 #bnav.show{display:flex;}
@@ -118,7 +115,6 @@ textarea{resize:none;}
 
 .oc{background:var(--surface);border:1.5px solid var(--border);border-left:3px solid;border-radius:14px;padding:13px 13px 11px;margin-bottom:10px;animation:fadeUp .2s ease;box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;transition:box-shadow .15s;}
 .oc.dragging{opacity:0 !important;box-shadow:none;animation:none !important;transition:none !important;}
-.oc.dragging *{animation:none !important;transition:none !important;}
 .sc.dragging{opacity:0 !important;box-shadow:none;animation:none !important;transition:none !important;}
 .oc.drag-over{border-top:3px solid #16a87a;}
 .drag-handle{font-size:18px;color:var(--border2);padding:2px 6px 2px 0;cursor:grab;touch-action:none;line-height:1;flex-shrink:0;}
@@ -342,7 +338,6 @@ textarea{resize:none;}
       <button id="reset-all-btn" title="Azzera tutti gli ordini" style="font-size:11px;font-weight:700;color:var(--red);padding:3px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid #fca5a5;cursor:pointer;line-height:1;">🗑</button><div id="upill"></div><button class="hb" id="logbtn">↩</button></div>
   </div>
   <div id="conn"></div>
-  <div id="lock-bar"></div>
   <div id="main">
 
     <!-- HOME -->
@@ -421,7 +416,6 @@ var auth = firebase.auth();
 var db   = firebase.firestore();
 var ocol = db.collection('orders');
 var scol = db.collection('shipments');
-var lockDoc = db.collection('status').doc('editLock');
 
 var EMAP = {"info@framezzino.it":"FRAMEZZINO","info@jpempire.it":"JP_EMPIRE"};
 var DAYS = [
@@ -588,12 +582,10 @@ function openOv(id){
   document.querySelectorAll('#ov .modal').forEach(function(m){m.style.display='none';});
   document.getElementById(id).style.display='block';
   document.getElementById('ov').classList.add('show');
-  acquireLock();
 }
 function closeOv(){
   document.getElementById('ov').classList.remove('show');
   document.querySelectorAll('#ov .modal').forEach(function(m){m.style.display='none';});
-  releaseLock();
 }
 function setConn(ok){
   var c=document.getElementById('conn');
@@ -767,7 +759,6 @@ auth.onAuthStateChanged(function(user){
 function startListen(){
   if(unsub1)unsub1();
   if(unsub2)unsub2();
-  startLockListener();
   unsub1=ocol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decOrder,function(orders){
       S.orders=orders; setConn(true);
@@ -781,49 +772,6 @@ function startListen(){
       if(document.getElementById('shome').classList.contains('show'))renderHome();
       if(document.getElementById('sship').classList.contains('show'))renderShipments();
     });
-  });
-}
-
-// ── EDIT LOCK ──────────────────────────────────────────────────────────────────
-var lockUnsub = null;
-var LOCK_TTL = 3 * 60 * 1000;
-
-function acquireLock(){
-  if(!S.uid) return;
-  lockDoc.set({user:S.uid,label:USERS[S.uid].label,time:Date.now(),active:true});
-}
-
-function releaseLock(){
-  lockDoc.get().then(function(snap){
-    if(snap.exists && snap.data().user===S.uid){
-      lockDoc.set({active:false,user:null,label:null,time:null});
-    }
-  });
-}
-
-function startLockListener(){
-  if(lockUnsub) lockUnsub();
-  lockUnsub=lockDoc.onSnapshot(function(snap){
-    var bar=document.getElementById('lock-bar');
-    var fab=document.getElementById('fab');
-    if(!snap.exists||!snap.data().active){
-      bar.classList.remove('show');
-      if(fab)fab.style.opacity='1';
-      return;
-    }
-    var d=snap.data();
-    if(d.time&&(Date.now()-d.time)>LOCK_TTL){
-      lockDoc.set({active:false,user:null,label:null,time:null});
-      return;
-    }
-    if(d.user&&d.user!==S.uid){
-      bar.textContent='✏️ '+d.label+' sta modificando…';
-      bar.classList.add('show');
-      if(fab)fab.style.opacity='0.3';
-    } else {
-      bar.classList.remove('show');
-      if(fab)fab.style.opacity='1';
-    }
   });
 }
 
@@ -949,7 +897,6 @@ function renderDay(){
       // Touch events
       handle.addEventListener('touchstart',function(e){
         e.preventDefault();
-        e.stopPropagation(); // prevent long press on card from firing
         var el=handle.closest('.oc');
         if(el)startDrag(el,e.touches[0].clientY);
       },{passive:false});
@@ -963,7 +910,6 @@ function renderDay(){
       // Mouse events (desktop)
       handle.addEventListener('mousedown',function(e){
         e.preventDefault();
-        e.stopPropagation();
         var el=handle.closest('.oc');
         if(el)startDrag(el,e.clientY);
         function onMove(e){ moveDrag(e.clientY); }
@@ -981,11 +927,9 @@ function renderDay(){
       var pt;
       function startPress(){
         pt=setTimeout(function(){
-          var id=card.dataset.oid;
-          if(!id)return;
           enterSelMode();
-          selIds[id]=true;
-          renderDay();
+          var id=card.dataset.oid;
+          if(id){selIds[id]=true;renderDay();}
         },500);
       }
       function cancelPress(){ clearTimeout(pt); }
@@ -1332,11 +1276,6 @@ document.getElementById('reset-all-btn').addEventListener('click',function(){
   });
 });
 
-// ── VISIBILITA' PAGINA (rilascia lock quando va in background)
-document.addEventListener('visibilitychange', function(){
-  if(document.hidden) releaseLock();
-});
-
 // ── HISTORY / TASTO INDIETRO ─────────────────────────────────────────────
 history.replaceState({screen:'home'},'','');
 
@@ -1400,8 +1339,6 @@ document.getElementById('logbtn').addEventListener('click',function(){
 });
 document.getElementById('back').addEventListener('click',function(){document.getElementById('bnav').classList.add('show');switchTab(S.tab==='ship'?'ship':'home');});
 document.getElementById('fab').addEventListener('click',function(){
-  var bar=document.getElementById('lock-bar');
-  if(bar.classList.contains('show')){toast(bar.textContent,'err');return;}
   if(S.tab==='ship')openShipmentModal(null);
   else openOrderModal(null,S.day);
 });
