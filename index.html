@@ -802,7 +802,7 @@ function renderDay(){
   if(!sorted.length){list.innerHTML='<div class="empty"><div class="eit">📭</div><p class="et">Nessun ordine</p><span class="es">Premi + per aggiungere</span></div>';return;}
   sorted.forEach(function(o){
     var u=USERS[o.userId]||USERS.FRAMEZZINO,isSel=!!selIds[o.id];
-    var c=document.createElement('div');c.className='oc'+(isSel?' selected':'');c.style.borderLeftColor=u.color;
+    var c=document.createElement('div');c.className='oc'+(isSel?' selected':'');c.style.borderLeftColor=u.color;c.dataset.oid=o.id;
     var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+o.id+'">⠿</span>':'';
     var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+o.id+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
     var actions=!selMode?'<button class="ocb bedit" data-id="'+o.id+'">✏️</button><button class="ocb bdel" data-id="'+o.id+'" style="color:var(--red)">🗑</button>':'';
@@ -814,92 +814,80 @@ function renderDay(){
   if(selMode){list.querySelectorAll('.oc').forEach(function(card){card.addEventListener('click',function(){var circle=card.querySelector('.sel-circle');if(circle)circle.click();});});}
   // ── DRAG & DROP RIORDINAMENTO ─────────────────────────────────────────────
   if(!selMode){
-    var ghost=null, dragId=null, dragEl=null, startY=0, listRect=null;
+    var ghost=null, dragEl=null, dragId=null, scrollTimer=null;
+    var mainEl=document.getElementById('main');
 
-    function getCardEls(){ return Array.from(list.querySelectorAll('.oc')); }
-
-    function createGhost(card, touchY){
-      var r=card.getBoundingClientRect();
-      ghost=card.cloneNode(true);
-      ghost.className='drag-ghost';
-      ghost.style.width=r.width+'px';
-      ghost.style.height=r.height+'px';
-      ghost.style.top=(touchY-r.height/2)+'px';
-      ghost.style.left=r.left+'px';
-      document.body.appendChild(ghost);
+    function savePosOrder(cards){
+      cards.forEach(function(card,i){
+        var id=card.dataset.oid;
+        if(!id)return;
+        ocol.doc(id).update({pos:i*100,updatedAt:new Date().toISOString()});
+      });
     }
 
-    function moveGhost(touchY){
-      if(ghost) ghost.style.top=(touchY-parseInt(ghost.style.height)/2)+'px';
-    }
-
-    function getInsertIndex(touchY){
-      var cards=getCardEls();
+    function getTargetCard(ty){
+      var cards=Array.from(list.querySelectorAll('.oc:not(.dragging)'));
       for(var i=0;i<cards.length;i++){
         var r=cards[i].getBoundingClientRect();
-        if(touchY < r.top+r.height/2) return i;
+        if(ty < r.top+r.height/2) return cards[i];
       }
-      return cards.length;
+      return null;
     }
 
-    function clearDragOver(){
-      getCardEls().forEach(function(el){el.classList.remove('drag-over');});
-    }
-
-    function savePosOrder(newOrder){
-      var base=Date.now();
-      newOrder.forEach(function(o,i){
-        if(o.pos!==i*100){
-          ocol.doc(o.id).update({pos:i*100,updatedAt:new Date().toISOString()});
-        }
-      });
+    function autoScroll(ty){
+      clearInterval(scrollTimer);
+      var mainR=mainEl.getBoundingClientRect();
+      var speed=0;
+      if(ty > mainR.bottom-80) speed=6+Math.round((ty-(mainR.bottom-80))/10);
+      else if(ty < mainR.top+80) speed=-(6+Math.round(((mainR.top+80)-ty)/10));
+      if(speed!==0){
+        scrollTimer=setInterval(function(){mainEl.scrollTop+=speed;},16);
+      }
     }
 
     list.querySelectorAll('.drag-handle').forEach(function(handle){
       handle.addEventListener('touchstart',function(e){
         e.preventDefault();
-        dragId=handle.dataset.drag;
         dragEl=handle.closest('.oc');
         if(!dragEl)return;
-        startY=e.touches[0].clientY;
-        listRect=list.getBoundingClientRect();
-        createGhost(dragEl, startY);
+        dragId=dragEl.dataset.oid;
+        var r=dragEl.getBoundingClientRect();
+        var ty=e.touches[0].clientY;
+        // Create ghost
+        ghost=dragEl.cloneNode(true);
+        ghost.className='drag-ghost';
+        ghost.style.width=r.width+'px';
+        ghost.style.height=r.height+'px';
+        ghost.style.top=(ty-r.height/2)+'px';
+        ghost.style.left=r.left+'px';
+        document.body.appendChild(ghost);
         dragEl.classList.add('dragging');
       },{passive:false});
 
       handle.addEventListener('touchmove',function(e){
-        if(!dragId)return;
+        if(!dragEl)return;
         e.preventDefault();
         var ty=e.touches[0].clientY;
-        moveGhost(ty);
-        clearDragOver();
-        var insertIdx=getInsertIndex(ty);
-        var cards=getCardEls();
-        if(insertIdx<cards.length && cards[insertIdx]!==dragEl){
-          cards[insertIdx].classList.add('drag-over');
+        ghost.style.top=(ty-parseInt(ghost.style.height)/2)+'px';
+        autoScroll(ty);
+        // Live reorder: move dragging card in DOM
+        var target=getTargetCard(ty);
+        if(target && target!==dragEl){
+          list.insertBefore(dragEl, target);
+        } else if(!target){
+          list.appendChild(dragEl);
         }
       },{passive:false});
 
       handle.addEventListener('touchend',function(e){
-        if(!dragId)return;
-        var ty=e.changedTouches[0].clientY;
-        var insertIdx=getInsertIndex(ty);
-        // Build new order
-        var newOrder=sorted.filter(function(o){return o.id!==dragId;});
-        var dragged=sorted.find(function(o){return o.id===dragId;});
-        if(dragged){
-          var targetIdx=insertIdx;
-          // Adjust index because we removed dragged
-          var draggedOrigIdx=sorted.findIndex(function(o){return o.id===dragId;});
-          if(draggedOrigIdx<insertIdx) targetIdx=Math.max(0,insertIdx-1);
-          newOrder.splice(targetIdx,0,dragged);
-          savePosOrder(newOrder);
-        }
-        // Cleanup
-        if(ghost){ghost.remove();ghost=null;}
-        if(dragEl){dragEl.classList.remove('dragging');dragEl=null;}
-        clearDragOver();
-        dragId=null;
+        if(!dragEl)return;
+        clearInterval(scrollTimer);
+        ghost.remove(); ghost=null;
+        dragEl.classList.remove('dragging');
+        // Save new order based on current DOM order
+        var finalCards=Array.from(list.querySelectorAll('.oc'));
+        savePosOrder(finalCards);
+        dragEl=null; dragId=null;
       });
     });
   }
