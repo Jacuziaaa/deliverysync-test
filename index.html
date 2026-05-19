@@ -313,6 +313,17 @@ textarea{resize:none;}
     <div class="mh"></div>
     <div class="mhead"><span class="mtitle">Sposta in un altro giorno</span><button class="mclose" id="movcl">✕</button></div>
     <div class="mbody">
+      <div class="fg">
+        <label class="flbl">Settimana</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="mov-week-prev" style="font-size:20px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid var(--border);">‹</button>
+          <div style="flex:1;text-align:center;">
+            <div id="mov-week-range" style="font-size:12px;font-weight:700;color:var(--text);"></div>
+            <div id="mov-week-badge" style="font-size:10px;color:#16a87a;font-weight:700;min-height:14px;"></div>
+          </div>
+          <button id="mov-week-next" style="font-size:20px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid var(--border);">›</button>
+        </div>
+      </div>
       <div class="fg"><label class="flbl">Giorno di destinazione</label><div class="dpick" id="movdpick"></div></div>
       <button id="movconfirm" style="padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;background:var(--violet);">Sposta ordini</button>
     </div>
@@ -1358,19 +1369,32 @@ document.getElementById('movbtn').addEventListener('click',function(){
   if(!Object.keys(selIds).length){toast('Seleziona almeno un ordine','err');return;}
   var u=USERS[S.uid],dp=document.getElementById('movdpick');dp.innerHTML='';
   var selDay=null;
-  DAYS.forEach(function(d){
-    if(d.k===S.day)return;
-    var btn=document.createElement('button');btn.className='dtog';btn.textContent=d.s;
-    function act(){dp.querySelectorAll('.dtog').forEach(function(b){b.style.borderColor='';b.style.background='';b.style.color='';});btn.style.borderColor=u.color;btn.style.background=u.bg;btn.style.color=u.color;selDay=d.k;}
-    btn.addEventListener('click',act);dp.appendChild(btn);
-  });
+  var movWeek=S.dayWeek||S.week||currentWeekKey();
+
+  function updateMovWeek(){
+    document.getElementById('mov-week-range').textContent=formatWeekRange(movWeek);
+    document.getElementById('mov-week-badge').textContent=movWeek===currentWeekKey()?'● Settimana corrente':'';
+    // Rebuild day picker for new week context
+    dp.innerHTML='';selDay=null;
+    DAYS.forEach(function(d){
+      if(movWeek===S.dayWeek&&d.k===S.day)return; // escludi giorno corrente solo se stessa settimana
+      var btn=document.createElement('button');btn.className='dtog';btn.textContent=d.s;
+      function act(){dp.querySelectorAll('.dtog').forEach(function(b){b.style.borderColor='';b.style.background='';b.style.color='';});btn.style.borderColor=u.color;btn.style.background=u.bg;btn.style.color=u.color;selDay=d.k;}
+      btn.addEventListener('click',act);dp.appendChild(btn);
+    });
+  }
+  updateMovWeek();
+
+  document.getElementById('mov-week-prev').onclick=function(){movWeek=weekKeyOffset(movWeek,-1);updateMovWeek();};
+  document.getElementById('mov-week-next').onclick=function(){movWeek=weekKeyOffset(movWeek,+1);updateMovWeek();};
+
   document.getElementById('movconfirm').onclick=function(){
     if(!selDay){toast('Seleziona un giorno','err');return;}
     var ids=Object.keys(selIds);
     Promise.all(ids.map(function(id){
       var order=S.orders.find(function(o){return o.id===id;});
       if(!order)return Promise.resolve();
-      var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,note:order.note,day:selDay,userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
+      var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,note:order.note,day:selDay,weekKey:movWeek,userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
       return new Promise(function(resolve){encOrder(payload,function(err,enc){if(err)resolve();else ocol.doc(id).update(enc).then(resolve).catch(resolve);});});
     })).then(function(){toast(ids.length+' ordini spostati ✓');closeOv();exitSelMode();});
   };
