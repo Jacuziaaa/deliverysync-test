@@ -244,6 +244,17 @@ textarea{resize:none;}
     <div class="mh"></div>
     <div class="mhead"><span class="mtitle" id="omtit">Nuovo Ordine</span><button class="mclose" id="omcl">✕</button></div>
     <div class="mbody">
+      <div class="fg">
+        <label class="flbl">Settimana</label>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="modal-week-prev" style="font-size:20px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid var(--border);">‹</button>
+          <div style="flex:1;text-align:center;">
+            <div id="modal-week-range" style="font-size:12px;font-weight:700;color:var(--text);"></div>
+            <div id="modal-week-badge" style="font-size:10px;color:var(--green);font-weight:700;min-height:14px;"></div>
+          </div>
+          <button id="modal-week-next" style="font-size:20px;font-weight:300;color:var(--muted);padding:4px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid var(--border);">›</button>
+        </div>
+      </div>
       <div class="fg"><label class="flbl">Giorno di consegna</label><div class="dpick" id="dpick"></div></div>
       <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
       <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="floc" placeholder=""></div>
@@ -979,6 +990,20 @@ function openOrderModal(editId,defDay){
   document.getElementById('repgrp').style.display=isEdit?'flex':'none';
   var selSig = order?order.sigilli:'';
   buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});
+
+  // Settimana selezionata nel modal
+  var modalWeek = order ? (order.weekKey||currentWeekKey()) : (S.dayWeek||S.week||currentWeekKey());
+  function updateModalWeek(){
+    document.getElementById('modal-week-range').textContent = formatWeekRange(modalWeek);
+    document.getElementById('modal-week-badge').textContent = modalWeek===currentWeekKey() ? '● Settimana corrente' : '';
+  }
+  updateModalWeek();
+  document.getElementById('modal-week-prev').onclick = function(){
+    modalWeek = weekKeyOffset(modalWeek,-1); updateModalWeek();
+  };
+  document.getElementById('modal-week-next').onclick = function(){
+    modalWeek = weekKeyOffset(modalWeek,+1); updateModalWeek();
+  };
   var dp=document.getElementById('dpick');dp.innerHTML='';
   var selDay=day;
   DAYS.forEach(function(d){
@@ -1000,9 +1025,9 @@ function openOrderModal(editId,defDay){
     var locale=document.getElementById('floc').value.trim(),luogo=document.getElementById('fluo').value.trim(),merce=document.getElementById('fmer').value.trim();
     if(!locale||!luogo||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
-    var dayOrders=S.orders.filter(function(o){return o.day===selDay&&(o.weekKey||currentWeekKey())===(S.dayWeek||S.week||currentWeekKey());});
+    var dayOrders=S.orders.filter(function(o){return o.day===selDay&&(o.weekKey||currentWeekKey())===modalWeek;});
     var maxPos=dayOrders.reduce(function(m,o){return o.pos!=null&&o.pos>m?o.pos:m;},0);
-    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:S.dayWeek||S.week||currentWeekKey(),pos:isEdit?(order.pos!=null?order.pos:maxPos+1):maxPos+1};
+    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:modalWeek,pos:isEdit?(order.pos!=null?order.pos:maxPos+1):maxPos+1};
     if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();payload.weekKey=order.weekKey||currentWeekKey();}
     else{payload.createdAt=new Date().toISOString();}
     encOrder(payload,function(err,enc){
