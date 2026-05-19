@@ -846,66 +846,82 @@ function renderDay(){
     }
 
     list.querySelectorAll('.drag-handle').forEach(function(handle){
-      handle.addEventListener('touchstart',function(e){
-        e.preventDefault();
-        dragEl=handle.closest('.oc');
-        if(!dragEl)return;
+      function startDrag(el, clientY){
+        dragEl=el;
         dragId=dragEl.dataset.oid;
         var r=dragEl.getBoundingClientRect();
-        var ty=e.touches[0].clientY;
-        // Create ghost
         ghost=dragEl.cloneNode(true);
         ghost.className='drag-ghost';
         ghost.style.width=r.width+'px';
         ghost.style.height=r.height+'px';
-        ghost.style.top=(ty-r.height/2)+'px';
+        ghost.style.top=(clientY-r.height/2)+'px';
         ghost.style.left=r.left+'px';
         document.body.appendChild(ghost);
         dragEl.classList.add('dragging');
-      },{passive:false});
+      }
+      function moveDrag(clientY){
+        if(!dragEl||!ghost)return;
+        ghost.style.top=(clientY-parseInt(ghost.style.height)/2)+'px';
+        autoScroll(clientY);
+        var target=getTargetCard(clientY);
+        if(target && target!==dragEl) list.insertBefore(dragEl,target);
+        else if(!target) list.appendChild(dragEl);
+      }
+      function endDrag(){
+        if(!dragEl)return;
+        clearInterval(scrollTimer);
+        if(ghost){ghost.remove();ghost=null;}
+        dragEl.classList.remove('dragging');
+        var finalCards=Array.from(list.querySelectorAll('.oc'));
+        savePosOrder(finalCards);
+        dragEl=null;dragId=null;
+      }
 
+      // Touch events
+      handle.addEventListener('touchstart',function(e){
+        e.preventDefault();
+        var el=handle.closest('.oc');
+        if(el)startDrag(el,e.touches[0].clientY);
+      },{passive:false});
       handle.addEventListener('touchmove',function(e){
         if(!dragEl)return;
         e.preventDefault();
-        var ty=e.touches[0].clientY;
-        ghost.style.top=(ty-parseInt(ghost.style.height)/2)+'px';
-        autoScroll(ty);
-        // Live reorder: move dragging card in DOM
-        var target=getTargetCard(ty);
-        if(target && target!==dragEl){
-          list.insertBefore(dragEl, target);
-        } else if(!target){
-          list.appendChild(dragEl);
-        }
+        moveDrag(e.touches[0].clientY);
       },{passive:false});
+      handle.addEventListener('touchend',function(){ endDrag(); });
 
-      handle.addEventListener('touchend',function(e){
-        if(!dragEl)return;
-        clearInterval(scrollTimer);
-        ghost.remove(); ghost=null;
-        dragEl.classList.remove('dragging');
-        // Save new order based on current DOM order
-        var finalCards=Array.from(list.querySelectorAll('.oc'));
-        savePosOrder(finalCards);
-        dragEl=null; dragId=null;
+      // Mouse events (desktop)
+      handle.addEventListener('mousedown',function(e){
+        e.preventDefault();
+        var el=handle.closest('.oc');
+        if(el)startDrag(el,e.clientY);
+        function onMove(e){ moveDrag(e.clientY); }
+        function onUp(){ endDrag(); document.removeEventListener('mousemove',onMove); document.removeEventListener('mouseup',onUp); }
+        document.addEventListener('mousemove',onMove);
+        document.addEventListener('mouseup',onUp);
       });
     });
   }
   list.querySelectorAll('.bedit').forEach(function(b){b.addEventListener('click',function(){openOrderModal(b.dataset.id,S.day);});});
   list.querySelectorAll('.bdel').forEach(function(b){b.addEventListener('click',function(){var id=b.dataset.id;confirm('Eliminare questo ordine?',function(){ocol.doc(id).delete().then(function(){toast('Ordine eliminato');});});});});
-  // Long press (500ms) per entrare in modalità selezione
+  // Long press (500ms) per entrare in modalità selezione — touch e mouse
   if(!selMode){
     list.querySelectorAll('.oc').forEach(function(card){
       var pt;
-      card.addEventListener('touchstart',function(){
+      function startPress(){
         pt=setTimeout(function(){
           enterSelMode();
-          var btn=card.querySelector('[data-id]');
-          if(btn){selIds[btn.dataset.id]=true;renderDay();}
+          var id=card.dataset.oid;
+          if(id){selIds[id]=true;renderDay();}
         },500);
-      });
-      card.addEventListener('touchend',function(){clearTimeout(pt);});
-      card.addEventListener('touchmove',function(){clearTimeout(pt);});
+      }
+      function cancelPress(){ clearTimeout(pt); }
+      card.addEventListener('touchstart',startPress);
+      card.addEventListener('touchend',cancelPress);
+      card.addEventListener('touchmove',cancelPress);
+      card.addEventListener('mousedown',startPress);
+      card.addEventListener('mouseup',cancelPress);
+      card.addEventListener('mousemove',cancelPress);
     });
   }
 }
