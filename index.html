@@ -115,6 +115,7 @@ textarea{resize:none;}
 
 .oc{background:var(--surface);border:1.5px solid var(--border);border-left:3px solid;border-radius:14px;padding:13px 13px 11px;margin-bottom:10px;animation:fadeUp .2s ease;box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;transition:box-shadow .15s;}
 .oc.dragging{opacity:0 !important;box-shadow:none;animation:none !important;transition:none !important;}
+.sc.dragging{opacity:0 !important;box-shadow:none;animation:none !important;transition:none !important;}
 .oc.drag-over{border-top:3px solid #16a87a;}
 .drag-handle{font-size:18px;color:var(--border2);padding:2px 6px 2px 0;cursor:grab;touch-action:none;line-height:1;flex-shrink:0;}
 .drag-ghost{position:fixed;pointer-events:none;z-index:999;opacity:.95;box-shadow:0 12px 32px rgba(0,0,0,.18);border-radius:14px;border:2px solid #16a87a !important;left:0;transform:scale(1.02);transition:none;}
@@ -527,7 +528,9 @@ function encShipment(o,cb){
   PAG_EXTRA.forEach(function(f){bools[f.k]=o[f.k]||false;});
   encFields(o,SHIP_TEXT_FIELDS,Object.assign(bools,{
     createdAt:o.createdAt||new Date().toISOString(),
-    updatedAt:o.updatedAt||null,v:1
+    updatedAt:o.updatedAt||null,
+    pos:o.pos!=null?o.pos:null,
+    v:1
   }),cb);
 }
 function decShipment(id,d,cb){
@@ -536,7 +539,7 @@ function decShipment(id,d,cb){
     SHIP_FIELDS.forEach(function(f){r[f.k]=d[f.k]||false;});
     PAG_EXTRA.forEach(function(f){r[f.k]=d[f.k]||false;});
     r.createdAt=d.createdAt; r.updatedAt=d.updatedAt;
-    cb(null,r);
+    r.pos=d.pos!=null?d.pos:null;    cb(null,r);
   });
 }
 function decList(docs,decFn,cb){
@@ -944,9 +947,10 @@ function renderShipments(){
   document.getElementById('stlbl').textContent=ships.length+' spedizioni';
   var list=document.getElementById('slist');list.innerHTML='';
   if(!ships.length){list.innerHTML='<div class="empty"><div class="eit">📬</div><p class="et">Nessuna spedizione</p><span class="es">Premi + per aggiungere</span></div>';return;}
+  ships.sort(function(a,b){var pa=a.pos!=null?a.pos:new Date(a.createdAt).getTime(),pb=b.pos!=null?b.pos:new Date(b.createdAt).getTime();return pa-pb;});
   ships.forEach(function(s){
     var u=USERS[s.userId]||USERS.FRAMEZZINO;
-    var card=document.createElement('div');card.className='sc';card.style.borderLeftColor=u.color;
+    var card=document.createElement('div');card.className='sc';card.style.borderLeftColor=u.color;card.dataset.oid=s.id;
 
     // Canale badge
     var chanBadge=s.canale==='W'?'<span class="chan-badge chan-w">📱 W</span>':'<span class="chan-badge chan-m">✉️ M</span>';
@@ -964,7 +968,7 @@ function renderShipments(){
     }).join('');
 
     card.innerHTML=
-      '<div class="sc-head"><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
+      '<div class="sc-head"><span class="drag-handle" data-drag="'+s.id+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
       '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+
       '<div class="sc-meta">'+chanBadge+'</div>'+
@@ -977,6 +981,84 @@ function renderShipments(){
   // Solo edit e delete — nessun toggle chip dalla card
   list.querySelectorAll('.sedit').forEach(function(b){b.addEventListener('click',function(){openShipmentModal(b.dataset.id);});});
   list.querySelectorAll('.sdel').forEach(function(b){b.addEventListener('click',function(){var id=b.dataset.id;confirm('Eliminare questa spedizione?',function(){scol.doc(id).delete().then(function(){toast('Spedizione eliminata');});});});});
+
+  // ── DRAG & DROP SPEDIZIONI ─────────────────────────────────────────────
+  var sGhost=null, sDragEl=null, sScrollTimer=null;
+  var mainEl2=document.getElementById('main');
+
+  function saveSPosOrder(cards){
+    cards.forEach(function(card,i){
+      var id=card.dataset.oid;
+      if(!id)return;
+      scol.doc(id).update({pos:i*100,updatedAt:new Date().toISOString()});
+    });
+  }
+  function getSTargetCard(ty){
+    var cards=Array.from(list.querySelectorAll('.sc:not(.dragging)'));
+    for(var i=0;i<cards.length;i++){
+      var r=cards[i].getBoundingClientRect();
+      if(ty<r.top+r.height/2) return cards[i];
+    }
+    return null;
+  }
+  function sAutoScroll(ty){
+    clearInterval(sScrollTimer);
+    var mR=mainEl2.getBoundingClientRect(),speed=0;
+    if(ty>mR.bottom-80) speed=6+Math.round((ty-(mR.bottom-80))/10);
+    else if(ty<mR.top+80) speed=-(6+Math.round(((mR.top+80)-ty)/10));
+    if(speed!==0) sScrollTimer=setInterval(function(){mainEl2.scrollTop+=speed;},16);
+  }
+  function sStartDrag(el,clientY){
+    sDragEl=el;
+    var r=el.getBoundingClientRect();
+    sGhost=el.cloneNode(true);
+    sGhost.classList.remove('dragging');
+    sGhost.classList.add('drag-ghost');
+    sGhost.style.width=r.width+'px';
+    sGhost.style.top=(clientY-r.height/2)+'px';
+    sGhost.style.left=r.left+'px';
+    document.body.appendChild(sGhost);
+    sDragEl.classList.add('dragging');
+  }
+  function sMoveDrag(clientY){
+    if(!sDragEl||!sGhost)return;
+    sGhost.style.top=(clientY-sGhost.offsetHeight/2)+'px';
+    sAutoScroll(clientY);
+    var target=getSTargetCard(clientY);
+    if(target&&target!==sDragEl) list.insertBefore(sDragEl,target);
+    else if(!target) list.appendChild(sDragEl);
+  }
+  function sEndDrag(){
+    if(!sDragEl)return;
+    clearInterval(sScrollTimer);
+    if(sGhost){sGhost.remove();sGhost=null;}
+    sDragEl.classList.remove('dragging');
+    var finalCards=Array.from(list.querySelectorAll('.sc'));
+    saveSPosOrder(finalCards);
+    sDragEl=null;
+  }
+  list.querySelectorAll('.drag-handle').forEach(function(handle){
+    handle.addEventListener('touchstart',function(e){
+      e.preventDefault();
+      var el=handle.closest('.sc');
+      if(el)sStartDrag(el,e.touches[0].clientY);
+    },{passive:false});
+    handle.addEventListener('touchmove',function(e){
+      if(!sDragEl)return;
+      e.preventDefault();
+      sMoveDrag(e.touches[0].clientY);
+    },{passive:false});
+    handle.addEventListener('touchend',sEndDrag);
+    handle.addEventListener('mousedown',function(e){
+      e.preventDefault();
+      var el=handle.closest('.sc');
+      if(el)sStartDrag(el,e.clientY);
+      function onMove(e){sMoveDrag(e.clientY);}
+      function onUp(){sEndDrag();document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);}
+      document.addEventListener('mousemove',onMove);
+      document.addEventListener('mouseup',onUp);
+    });
+  });
 }
 
 // ── ORDER MODAL ───────────────────────────────────────────────────────────
@@ -1122,7 +1204,8 @@ function openShipmentModal(editId){
     if(!locale||!merce){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
     var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});PAG_EXTRA.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
-    var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:selSSig||'',pagamento:selSpag||'',userId:selRep},bools);
+    var maxSPos=S.shipments.reduce(function(m,s){return s.pos!=null&&s.pos>m?s.pos:m;},0);
+    var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:selSSig||'',pagamento:selSpag||'',userId:selRep,pos:isEdit?(ship.pos!=null?ship.pos:maxSPos+1):maxSPos+1},bools);
     if(isEdit){payload.createdAt=ship.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encShipment(payload,function(err,enc){
