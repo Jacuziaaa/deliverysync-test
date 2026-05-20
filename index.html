@@ -1362,7 +1362,7 @@ document.getElementById('rbtn').addEventListener('click',function(){
   });
 });
 document.getElementById('ebtn').addEventListener('click',function(){
-  var rows=S.orders.filter(function(o){return o.day===S.day;}).sort(function(a,b){return (a.luogo||'').localeCompare(b.luogo||'','it');});
+  var rows=S.orders.filter(function(o){return o.day===S.day&&(o.weekKey||currentWeekKey())===(S.dayWeek||S.week||currentWeekKey());}).sort(function(a,b){var pa=a.pos!=null?a.pos:new Date(a.createdAt).getTime(),pb=b.pos!=null?b.pos:new Date(b.createdAt).getTime();return pa-pb;});
   openExport(rows,'Esporta — '+DAYS.find(function(d){return d.k===S.day;}).l);
 });
 document.getElementById('movbtn').addEventListener('click',function(){
@@ -1403,7 +1403,7 @@ document.getElementById('movbtn').addEventListener('click',function(){
 document.getElementById('expselbtn').addEventListener('click',function(){
   var ids=Object.keys(selIds);
   if(!ids.length){toast('Seleziona almeno un ordine','err');return;}
-  var rows=S.orders.filter(function(o){return !!selIds[o.id];}).sort(function(a,b){return (a.luogo||'').localeCompare(b.luogo||'','it');});
+  var rows=S.orders.filter(function(o){return !!selIds[o.id];}).sort(function(a,b){var pa=a.pos!=null?a.pos:new Date(a.createdAt).getTime(),pb=b.pos!=null?b.pos:new Date(b.createdAt).getTime();return pa-pb;});
   openExport(rows,'Esporta selezionati');
 });
 document.getElementById('expshipbtn').addEventListener('click',function(){exportShipments(S.shipments);});
