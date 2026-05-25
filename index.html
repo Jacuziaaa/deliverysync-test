@@ -388,6 +388,7 @@ textarea{resize:none;}
           <span id="sellbl" style="font-size:12px;color:var(--muted);">0 selezionati</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="tbtn" id="movbtn" style="color:var(--violet);border-color:#c4b5fd;">📅 Sposta</button>
+            <button class="tbtn" id="delselbtn" style="color:var(--red);border-color:#fca5a5;">🗑 Elimina</button>
             <button class="tbtn" id="expselbtn" style="color:var(--green);border-color:#6ee7b7;">📋 Esporta sel.</button>
             <button class="tbtn" id="cancelbtn">✕ Annulla</button>
           </div>
@@ -1399,6 +1400,16 @@ document.getElementById('movbtn').addEventListener('click',function(){
     })).then(function(){toast(ids.length+' ordini spostati ✓');closeOv();exitSelMode();});
   };
   openOv('movmod');
+});
+document.getElementById('delselbtn').addEventListener('click',function(){
+  var ids=Object.keys(selIds);
+  if(!ids.length){toast('Seleziona almeno un ordine','err');return;}
+  confirm('Eliminare i '+ids.length+' ordini selezionati?',function(){
+    Promise.all(ids.map(function(id){return ocol.doc(id).delete();})).then(function(){
+      toast(ids.length+' ordini eliminati 🗑️');
+      exitSelMode();
+    });
+  });
 });
 document.getElementById('expselbtn').addEventListener('click',function(){
   var ids=Object.keys(selIds);
