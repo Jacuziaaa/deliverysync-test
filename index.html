@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f4f6f9">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(function(){});</script>
 <title>DeliverySync</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -71,6 +76,16 @@ textarea{resize:none;}
 #conn.ok{display:block;background:#e6f7f2;color:#16a87a;border-bottom:1px solid #16a87a33;}
 #conn.off{display:block;background:#fff8e1;color:var(--amber);border-bottom:1px solid #fcd34d66;}
 
+/* ARTICLE PICKER */
+.art-picker{display:flex;gap:10px;width:100%;}
+.art-col{flex:1;display:flex;flex-direction:column;gap:2px;}
+.art-col-title{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;padding:4px 2px;border-bottom:1.5px solid var(--border);margin-bottom:2px;}
+.art-row{display:flex;align-items:center;justify-content:space-between;padding:5px 4px;border-radius:8px;}
+.art-row:nth-child(even){background:var(--surface2);}
+.art-label{font-size:12px;font-weight:600;color:var(--text);flex:1;}
+.art-ctrl{display:flex;align-items:center;gap:4px;}
+.art-btn{width:26px;height:26px;border-radius:7px;font-size:16px;font-weight:700;background:var(--surface);border:1.5px solid var(--border);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;line-height:1;}
+.art-qty{font-size:13px;font-weight:800;color:var(--text);min-width:18px;text-align:center;}
 /* BOTTOM NAV */
 #bnav{display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;background:var(--surface);border-top:1.5px solid var(--border);flex-shrink:0;box-shadow:0 -1px 4px rgba(0,0,0,.05);z-index:100;}
 #bnav.show{display:flex;}
@@ -113,7 +128,7 @@ textarea{resize:none;}
 .sel-circle{width:22px;height:22px;border-radius:50%;border:2px solid var(--border2);background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;}
 .sel-circle.on{background:var(--violet);border-color:var(--violet);color:#fff;}
 
-.oc{background:var(--surface);border:1.5px solid var(--border);border-left:3px solid;border-radius:14px;padding:13px 13px 11px;margin-bottom:10px;animation:fadeUp .2s ease;box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;transition:box-shadow .15s;}
+.oc{background:var(--surface);border:1.5px solid var(--border);border-left:3px solid;border-radius:14px;padding:13px 13px 11px;margin-bottom:10px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;box-shadow:0 1px 3px rgba(0,0,0,.04);position:relative;transition:box-shadow .15s;}
 .oc.dragging{opacity:0 !important;box-shadow:none;animation:none !important;transition:none !important;}
 .sc.dragging{opacity:0 !important;box-shadow:none;animation:none !important;transition:none !important;}
 .oc.drag-over{border-top:3px solid #16a87a;}
@@ -130,7 +145,7 @@ textarea{resize:none;}
 .ov.dim{color:var(--muted);}
 
 /* SHIPMENT CARDS */
-.sc{background:var(--surface);border:1.5px solid var(--border);border-left:3px solid;border-radius:14px;padding:13px 13px 12px;margin-bottom:10px;animation:fadeUp .2s ease;box-shadow:0 1px 3px rgba(0,0,0,.04);}
+.sc{background:var(--surface);border:1.5px solid var(--border);border-left:3px solid;border-radius:14px;padding:13px 13px 12px;margin-bottom:10px;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 .sc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
 .sc-name{font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;}
 .sc-meta{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center;}
@@ -198,6 +213,47 @@ textarea{resize:none;}
 
 #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.12);white-space:nowrap;animation:toastIn .22s ease;display:none;color:#fff;}
 #toast.show{display:block;}
+
+/* ── ANIMAZIONE solo all'apertura di una schermata (non a ogni aggiornamento o spostamento: evitava i lampeggi) ── */
+.anim .oc,.anim .sc{animation:fadeUp .2s ease;}
+
+/* ── RESPONSIVE: S25 Ultra ~412px · Z Fold 5 chiuso ~344px · Z Fold 5 aperto ~690px ── */
+:root{--appw:460px;}
+#app{height:100vh;height:100dvh;}
+#app,#bnav{max-width:var(--appw);}
+.modal{max-height:92dvh;}
+#fab{right:max(18px,calc(50% - var(--appw) / 2 + 18px));}
+#hleft{min-width:0;flex:1;}
+#hleft>div{min-width:0;}
+#htitle,#hsub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#hright{flex-shrink:0;}
+#upill,#enc{white-space:nowrap;}
+@media (max-width:430px){
+  .enct,.ulbl{display:none;}
+  #upill{padding:4px 7px !important;}
+  #hdr{padding:10px 10px 10px 12px;}
+}
+@media (max-width:370px){
+  #reset-all-btn{padding:3px 6px !important;}
+  .hb{padding:4px 3px;}
+  .scr{padding:10px;}
+  .art-picker{gap:6px;}
+  .art-btn{width:24px;height:24px;}
+  .art-label{font-size:11px;}
+  .mbody{padding:14px 14px 36px;}
+  .sn{font-size:18px;}
+  .sl{font-size:9px;}
+  .tbtn{padding:7px 10px;}
+}
+@media (min-width:600px){
+  :root{--appw:780px;}
+  .scr{padding:16px 20px;}
+  #dlist{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:repeat(4,auto);grid-auto-flow:column;column-gap:12px;}
+  #ov{align-items:center;padding:20px;}
+  .modal{max-width:620px;border-radius:20px;max-height:90vh;max-height:90dvh;animation:fadeUp .2s ease;}
+  .modal .mh{display:none;}
+  #cfbox{max-width:360px;}
+}
 </style>
 </head>
 <body>
@@ -260,7 +316,8 @@ textarea{resize:none;}
       <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
       <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="floc" placeholder=""></div>
       <div class="fg"><label class="flbl">📍 Luogo Consegna</label><input class="finp" id="fluo" placeholder=""></div>
-      <div class="fg"><label class="flbl">📦 Articoli</label><textarea class="finp fta" id="fmer" placeholder=""></textarea></div>
+      <div class="fg"><label class="flbl">📦 Articoli</label><div id="fmer-pick"></div></div>
+      <div class="fg"><label class="flbl">🎁 Omaggio</label><input class="finp" id="fomaggio" placeholder=""></div>
       <div class="fg">
         <label class="flbl">🔒 Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="osig-pick"></div>
@@ -277,6 +334,7 @@ textarea{resize:none;}
     <div class="mbody">
       <div class="fg" id="srepgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="srpick"></div></div>
       <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="sloc" placeholder=""></div>
+      <div class="fg"><label class="flbl">📍 Luogo Spedizione</label><input class="finp" id="sluogo" placeholder=""></div>
       <div class="fg">
         <label class="flbl">📨 Canale</label>
         <div class="chan-pick">
@@ -284,7 +342,8 @@ textarea{resize:none;}
           <button class="ctog" id="ctog-m" data-chan="M">✉️ M</button>
         </div>
       </div>
-      <div class="fg"><label class="flbl">📦 Articoli</label><textarea class="finp fta" id="smer" placeholder=""></textarea></div>
+      <div class="fg"><label class="flbl">📦 Articoli</label><div id="smer-pick"></div></div>
+      <div class="fg"><label class="flbl">🎁 Omaggio</label><input class="finp" id="somaggio" placeholder=""></div>
       <div class="fg">
         <label class="flbl">🔒 Sigilli</label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;" id="ssig-pick"></div>
@@ -304,6 +363,7 @@ textarea{resize:none;}
           <button class="chip" id="fchip-spedito"   data-field="spedito">Spedito</button>
         </div>
       </div>
+      <div class="fg"><label class="flbl">📝 Note</label><textarea class="finp fta" id="snot" placeholder=""></textarea></div>
       <button id="ssbtn" style="padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;margin-top:2px;width:100%;">Salva Spedizione</button>
     </div>
   </div>
@@ -345,8 +405,8 @@ textarea{resize:none;}
 <div id="app">
   <div id="hdr">
     <div id="hleft"><button id="back">‹</button><div><div id="htitle">DeliverySync</div><div id="hsub"></div></div></div>
-    <div id="hright"><span id="enc">🔐 AES-256</span>
-      <button id="reset-all-btn" title="Azzera tutti gli ordini" style="font-size:11px;font-weight:700;color:var(--red);padding:3px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid #fca5a5;cursor:pointer;line-height:1;">🗑</button><div id="upill"></div><button class="hb" id="logbtn">↩</button></div>
+    <div id="hright"><span id="enc">🔐<span class="enct"> AES-256</span></span>
+      <button id="reset-all-btn" title="Azzera tutti gli ordini" style="font-size:11px;font-weight:700;color:var(--red);padding:3px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid #fca5a5;cursor:pointer;line-height:1;">🗑</button><div id="upill"></div><a class="hb" href="https://jacuziaaa.github.io/framezzino-network/" title="Framezzino Network (mappa clienti)" style="text-decoration:none">🗺️</a><button class="hb" id="logbtn">↩</button></div>
   </div>
   <div id="conn"></div>
   <div id="main">
@@ -388,7 +448,6 @@ textarea{resize:none;}
           <span id="sellbl" style="font-size:12px;color:var(--muted);">0 selezionati</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="tbtn" id="movbtn" style="color:var(--violet);border-color:#c4b5fd;">📅 Sposta</button>
-            <button class="tbtn" id="delselbtn" style="color:var(--red);border-color:#fca5a5;">🗑 Elimina</button>
             <button class="tbtn" id="expselbtn" style="color:var(--green);border-color:#6ee7b7;">📋 Esporta sel.</button>
             <button class="tbtn" id="cancelbtn">✕ Annulla</button>
           </div>
@@ -447,7 +506,11 @@ var SHIP_FIELDS = [
   {k:'spedito',   l:'Spedito'}
 ];
 var PAG_EXTRA = [{k:'proforma', l:'Proforma'}, {k:'fattura', l:'Fattura'}, {k:'pagato', l:'Pagato'}];
-var SIGILLI_OPTS = ['Bianchi', 'Pers. om.', 'Pers. €'];
+var TRAMEZZINI = ['S','M','L','MAGNUM','XXL','RETT.'];
+var GRANTOSTATI = ['PANINI','TOAST','TOSTONE','MAXI TST.','GALAXY','CLUB'];
+var VELINE = ['VEL. 18x25','VEL. 25x37'];
+
+var SIGILLI_OPTS = ['Bianchi', 'Pers. om.', 'Pers. €', 'Color. om.', 'Color. €', 'Smile om.', 'Smile €'];
 var PAG_OPTS     = ['Bonifico', 'Contrassegno', 'Paypal'];
 var SK = 'ds_cpw';
 
@@ -513,8 +576,8 @@ function decFields(id,d,fields,cb){
   next();
 }
 
-var ORDER_TEXT_FIELDS = ['locale','luogo','merce','sigilli','note','day','userId'];
-var SHIP_TEXT_FIELDS  = ['locale','canale','merce','sigilli','pagamento','userId'];
+var ORDER_TEXT_FIELDS = ['locale','luogo','merce','sigilli','omaggio','note','day','userId'];
+var SHIP_TEXT_FIELDS  = ['locale','luogo','canale','merce','sigilli','pagamento','omaggio','note','userId'];
 
 function encOrder(o,cb){
   encFields(o,ORDER_TEXT_FIELDS,{
@@ -606,21 +669,114 @@ function setConn(ok){
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+function parseArticoli(str) {
+  // Parse "2 S, 1 L, 3 Toast" into {S:2, L:1, Toast:3}
+  var result = {};
+  if (!str) return result;
+  str.split(',').forEach(function(part) {
+    part = part.trim();
+    var m = part.match(/^(\d+)\s+(.+)$/);
+    if (m) result[m[2].trim()] = parseInt(m[1]);
+  });
+  return result;
+}
+
+function serializeArticoli(qtys) {
+  // Convert {S:2, L:1, Toast:3} to "2 S, 1 L, 3 Toast"
+  var all = TRAMEZZINI.concat(GRANTOSTATI);
+  return all.filter(function(k){ return qtys[k] > 0; })
+    .map(function(k){ return qtys[k] + ' ' + k; })
+    .join(', ');
+}
+
+function buildArticoloPicker(containerId, currentVal, onChange) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var qtys = parseArticoli(currentVal);
+  TRAMEZZINI.forEach(function(k){ if (!qtys[k]) qtys[k] = 0; });
+  GRANTOSTATI.forEach(function(k){ if (!qtys[k]) qtys[k] = 0; });
+  VELINE.forEach(function(k){ if (!qtys[k]) qtys[k] = 0; });
+
+  function render() {
+    container.innerHTML = '';
+
+    function makeRow(k) {
+      var row = document.createElement('div');
+      row.className = 'art-row';
+      var lbl = document.createElement('span'); lbl.className='art-label'; lbl.textContent=k;
+      var ctrl = document.createElement('div'); ctrl.className='art-ctrl';
+      var btnM = document.createElement('button'); btnM.className='art-btn'; btnM.textContent='−'; btnM.type='button';
+      var qty = document.createElement('span'); qty.className='art-qty'; qty.textContent=qtys[k]||0;
+      if((qtys[k]||0)>0) qty.style.color='var(--chip-green)';
+      var btnP = document.createElement('button'); btnP.className='art-btn'; btnP.textContent='+'; btnP.type='button';
+      btnM.addEventListener('click',function(e){e.stopPropagation();if(qtys[k]>0){qtys[k]--;onChange(serializeArticoli(qtys));render();}});
+      btnP.addEventListener('click',function(e){e.stopPropagation();qtys[k]++;onChange(serializeArticoli(qtys));render();});
+      ctrl.appendChild(btnM);ctrl.appendChild(qty);ctrl.appendChild(btnP);
+      row.appendChild(lbl);row.appendChild(ctrl);
+      return row;
+    }
+
+    function makeColTitle(text){
+      var t=document.createElement('div');
+      t.className='art-col-title';
+      t.textContent=text;
+      return t;
+    }
+
+    // Due colonne principali
+    var picker = document.createElement('div');
+    picker.className = 'art-picker';
+
+    var colT = document.createElement('div'); colT.className='art-col';
+    colT.appendChild(makeColTitle('Tramezzini'));
+    TRAMEZZINI.forEach(function(k){ colT.appendChild(makeRow(k)); });
+    picker.appendChild(colT);
+
+    var colG = document.createElement('div'); colG.className='art-col';
+    colG.appendChild(makeColTitle('Grantostati'));
+    GRANTOSTATI.forEach(function(k){ colG.appendChild(makeRow(k)); });
+    picker.appendChild(colG);
+
+    container.appendChild(picker);
+
+    // Veline: sezione separata sotto
+    var velSec = document.createElement('div');
+    velSec.style.marginTop='8px';
+    velSec.appendChild(makeColTitle('Veline'));
+    var velRow = document.createElement('div');
+    velRow.style.cssText='display:flex;gap:12px;';
+    VELINE.forEach(function(k){
+      var row=makeRow(k);
+      row.style.flex='1';
+      velRow.appendChild(row);
+    });
+    velSec.appendChild(velRow);
+    container.appendChild(velSec);
+  }
+  render();
+}
+
+
 function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, onSelect) {
   var container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
-  var sel = currentVal || null;
+  // Multi-select: currentVal is comma-separated string
+  var selArr = currentVal ? currentVal.split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
+  function getVal(){ return selArr.join(', '); }
   opts.forEach(function(opt) {
     var btn = document.createElement('button');
-    var isOn = sel === opt;
+    var isOn = selArr.indexOf(opt) !== -1;
     btn.className = 'chip' + (isOn ? ' on' : '');
     if (isOn) { btn.style.background='var(--chip-green-bg)'; btn.style.color='var(--chip-green)'; btn.style.borderColor='#16a87a55'; }
+    else { btn.style.background=''; btn.style.color=''; btn.style.borderColor=''; }
     btn.textContent = opt + (isOn ? ' ✓' : '');
     btn.addEventListener('click', function() {
-      sel = (sel === opt) ? null : opt; // toggle
-      onSelect(sel);
-      buildChipPicker(containerId, opts, sel, accentColor, accentBg, onSelect);
+      var idx = selArr.indexOf(opt);
+      if (idx !== -1) selArr.splice(idx, 1);
+      else selArr.push(opt);
+      onSelect(getVal());
+      buildChipPicker(containerId, opts, getVal(), accentColor, accentBg, onSelect);
     });
     container.appendChild(btn);
   });
@@ -698,7 +854,7 @@ function showApp(uid){
   document.getElementById('bnav').classList.add('show');
   var u=USERS[uid];
   var p=document.getElementById('upill');
-  p.textContent=u.emoji+' '+u.label;
+  p.innerHTML=u.emoji+'<span class="ulbl"> '+esc(u.label)+'</span>';
   p.style.cssText='color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44;font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;';
   document.getElementById('fab').style.background=u.color;
   S.week = currentWeekKey();
@@ -728,7 +884,16 @@ function switchTab(tab){
   }
 }
 
+// Animazione di comparsa delle schede solo quando si apre una schermata
+var animT=null;
+function flashAnim(){var m=document.getElementById('main');m.classList.add('anim');clearTimeout(animT);animT=setTimeout(function(){m.classList.remove('anim');},450);}
+// Durante un trascinamento gli aggiornamenti da Firestore aspettano la fine (niente ridisegni a metà gesto)
+var DRAGGING=false, PENDING_RENDER=false;
+function afterDrag(){DRAGGING=false;if(PENDING_RENDER){PENDING_RENDER=false;
+  if(document.getElementById('sday').classList.contains('show'))renderDay();
+  if(document.getElementById('sship').classList.contains('show'))renderShipments();}}
 function showScr(id){
+  flashAnim();
   document.querySelectorAll('.scr').forEach(function(s){s.classList.remove('show');});
   document.getElementById('s'+id).classList.add('show');
   document.getElementById('main').scrollTop=0;
@@ -774,6 +939,7 @@ function startListen(){
   unsub1=ocol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decOrder,function(orders){
       S.orders=orders; setConn(true);
+      if(DRAGGING){PENDING_RENDER=true;return;}
       if(document.getElementById('shome').classList.contains('show'))renderHome();
       if(document.getElementById('sday').classList.contains('show'))renderDay();
     });
@@ -781,6 +947,7 @@ function startListen(){
   unsub2=scol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decShipment,function(ships){
       S.shipments=ships;
+      if(DRAGGING){PENDING_RENDER=true;return;}
       if(document.getElementById('shome').classList.contains('show'))renderHome();
       if(document.getElementById('sship').classList.contains('show'))renderShipments();
     });
@@ -835,7 +1002,7 @@ function renderDay(){
     var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+o.id+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
     var actions=!selMode?'<button class="ocb bedit" data-id="'+o.id+'">✏️</button><button class="ocb bdel" data-id="'+o.id+'" style="color:var(--red)">🗑</button>':'';
     var repLine=selMode?'<div style="font-size:10px;font-weight:700;color:'+u.color+';margin-bottom:4px;">'+u.emoji+' '+u.label+'</div>':'';
-    c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(o.merce)+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
+    c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(o.merce)+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(o.omaggio)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
     list.appendChild(c);
   });
   list.querySelectorAll('.sel-circle').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();var id=b.dataset.id;if(selIds[id])delete selIds[id];else selIds[id]=true;renderDay();});});
@@ -846,11 +1013,17 @@ function renderDay(){
     var mainEl=document.getElementById('main');
 
     function savePosOrder(cards){
+      // una sola scrittura per tutte le posizioni cambiate (prima: una per scheda = tanti ridisegni)
+      var b=db.batch(),n=0,now=new Date().toISOString();
       cards.forEach(function(card,i){
         var id=card.dataset.oid;
         if(!id)return;
-        ocol.doc(id).update({pos:i*100,updatedAt:new Date().toISOString()});
+        var o=S.orders.find(function(x){return x.id===id;});
+        if(o&&o.pos===i*100)return;
+        if(o)o.pos=i*100;
+        b.update(ocol.doc(id),{pos:i*100,updatedAt:now});n++;
       });
+      if(n)b.commit().catch(function(){toast('Ordine non salvato: riprova','err');});
     }
 
     function getTargetCard(ty){
@@ -875,6 +1048,7 @@ function renderDay(){
 
     list.querySelectorAll('.drag-handle').forEach(function(handle){
       function startDrag(el, clientY){
+        DRAGGING=true;
         dragEl=el;
         dragId=dragEl.dataset.oid;
         var r=dragEl.getBoundingClientRect();
@@ -904,6 +1078,7 @@ function renderDay(){
         var finalCards=Array.from(list.querySelectorAll('.oc'));
         savePosOrder(finalCards);
         dragEl=null;dragId=null;
+        afterDrag();
       }
 
       // Touch events
@@ -918,6 +1093,7 @@ function renderDay(){
         moveDrag(e.touches[0].clientY);
       },{passive:false});
       handle.addEventListener('touchend',function(){ endDrag(); });
+      handle.addEventListener('touchcancel',function(){ endDrag(); });
 
       // Mouse events (desktop)
       handle.addEventListener('mousedown',function(e){
@@ -935,22 +1111,38 @@ function renderDay(){
   list.querySelectorAll('.bdel').forEach(function(b){b.addEventListener('click',function(){var id=b.dataset.id;confirm('Eliminare questo ordine?',function(){ocol.doc(id).delete().then(function(){toast('Ordine eliminato');});});});});
   // Long press (500ms) per entrare in modalità selezione — touch e mouse
   if(!selMode){
+    // Pressione lunga: tollera il tremolio del dito (10 px), ignora maniglia e pulsanti,
+    // e blocca il menu/selezione di Chrome (era quella la vibrazione "a vuoto" sul Fold 5)
     list.querySelectorAll('.oc').forEach(function(card){
-      var pt;
-      function startPress(){
+      var pt=null,sx=0,sy=0;
+      function startPress(e){
+        if(e.target.closest('.drag-handle,button,a,.sel-circle'))return;
+        var p=e.touches?e.touches[0]:e;sx=p.clientX;sy=p.clientY;
+        clearTimeout(pt);
         pt=setTimeout(function(){
+          pt=null;
+          if(DRAGGING)return;
+          if(navigator.vibrate)try{navigator.vibrate(25);}catch(_){}
           enterSelMode();
           var id=card.dataset.oid;
           if(id){selIds[id]=true;renderDay();}
         },500);
       }
-      function cancelPress(){ clearTimeout(pt); }
-      card.addEventListener('touchstart',startPress);
+      function movePress(e){
+        if(!pt)return;
+        var p=e.touches?e.touches[0]:e;
+        if(Math.abs(p.clientX-sx)>10||Math.abs(p.clientY-sy)>10){clearTimeout(pt);pt=null;}
+      }
+      function cancelPress(){ clearTimeout(pt);pt=null; }
+      card.addEventListener('touchstart',startPress,{passive:true});
+      card.addEventListener('touchmove',movePress,{passive:true});
       card.addEventListener('touchend',cancelPress);
-      card.addEventListener('touchmove',cancelPress);
+      card.addEventListener('touchcancel',cancelPress);
       card.addEventListener('mousedown',startPress);
+      card.addEventListener('mousemove',movePress);
       card.addEventListener('mouseup',cancelPress);
-      card.addEventListener('mousemove',cancelPress);
+      card.addEventListener('mouseleave',cancelPress);
+      card.addEventListener('contextmenu',function(e){e.preventDefault();});
     });
   }
 }
@@ -984,10 +1176,12 @@ function renderShipments(){
     card.innerHTML=
       '<div class="sc-head"><span class="drag-handle" data-drag="'+s.id+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
       '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
-      '<div class="sc-name">'+esc(s.locale)+'</div>'+
+      '<div class="sc-name">'+esc(s.locale)+'</div>'+(s.luogo?'<div class="sc-field">📍 '+esc(s.luogo)+'</div>':'')+
       '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
       (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
+      (s.omaggio?'<div class="sc-field">🎁 '+esc(s.omaggio)+'</div>':'')+
+      (s.note?'<div class="sc-field" style="color:var(--muted);">📝 '+esc(s.note)+'</div>':'')+
       (pagChips?'<div style="margin-top:8px;"><span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;">💳 PAGAMENTO</span><div class="chips" style="margin-top:5px;">'+pagChips+'</div></div>':'')+
       '<div style="margin-top:6px;"><span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;">📋 STATO</span><div class="chips" style="margin-top:5px;">'+statoChips+'</div></div>';
     list.appendChild(card);
@@ -1001,11 +1195,16 @@ function renderShipments(){
   var mainEl2=document.getElementById('main');
 
   function saveSPosOrder(cards){
+    var b=db.batch(),n=0,now=new Date().toISOString();
     cards.forEach(function(card,i){
       var id=card.dataset.oid;
       if(!id)return;
-      scol.doc(id).update({pos:i*100,updatedAt:new Date().toISOString()});
+      var s=S.shipments.find(function(x){return x.id===id;});
+      if(s&&s.pos===i*100)return;
+      if(s)s.pos=i*100;
+      b.update(scol.doc(id),{pos:i*100,updatedAt:now});n++;
     });
+    if(n)b.commit().catch(function(){toast('Spedizione non salvata: riprova','err');});
   }
   function getSTargetCard(ty){
     var cards=Array.from(list.querySelectorAll('.sc:not(.dragging)'));
@@ -1023,6 +1222,7 @@ function renderShipments(){
     if(speed!==0) sScrollTimer=setInterval(function(){mainEl2.scrollTop+=speed;},16);
   }
   function sStartDrag(el,clientY){
+    DRAGGING=true;
     sDragEl=el;
     var r=el.getBoundingClientRect();
     sGhost=el.cloneNode(true);
@@ -1050,6 +1250,7 @@ function renderShipments(){
     var finalCards=Array.from(list.querySelectorAll('.sc'));
     saveSPosOrder(finalCards);
     sDragEl=null;
+    afterDrag();
   }
   list.querySelectorAll('.drag-handle').forEach(function(handle){
     handle.addEventListener('touchstart',function(e){
@@ -1063,6 +1264,7 @@ function renderShipments(){
       sMoveDrag(e.touches[0].clientY);
     },{passive:false});
     handle.addEventListener('touchend',sEndDrag);
+    handle.addEventListener('touchcancel',sEndDrag);
     handle.addEventListener('mousedown',function(e){
       e.preventDefault();
       var el=handle.closest('.sc');
@@ -1082,9 +1284,12 @@ function openOrderModal(editId,defDay){
   document.getElementById('omtit').textContent=isEdit?'Modifica Ordine':'Nuovo Ordine';
   document.getElementById('floc').value=order?order.locale:'';
   document.getElementById('fluo').value=order?order.luogo:'';
-  document.getElementById('fmer').value=order?order.merce:'';
+  document.getElementById('fomaggio').value=order?order.omaggio||'':'';
   document.getElementById('fnot').value=order?order.note:'';
   document.getElementById('repgrp').style.display=isEdit?'flex':'none';
+  var selMer = order?order.merce:'';
+  buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});
+
   var selSig = order?order.sigilli:'';
   buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});
 
@@ -1119,13 +1324,13 @@ function openOrderModal(editId,defDay){
   }
   var sb=document.getElementById('sbtn');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.style.background=u.color;sb.disabled=false;
   sb.onclick=function(){
-    var locale=document.getElementById('floc').value.trim(),luogo=document.getElementById('fluo').value.trim(),merce=document.getElementById('fmer').value.trim();
-    if(!locale||!luogo||!merce){toast('Compila i campi obbligatori *','err');return;}
+    var locale=document.getElementById('floc').value.trim(),luogo=document.getElementById('fluo').value.trim(),merce=selMer||'';
+    if(!locale||!luogo){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
     var dayOrders=S.orders.filter(function(o){return o.day===selDay&&(o.weekKey||currentWeekKey())===modalWeek;});
     var maxPos=dayOrders.reduce(function(m,o){return o.pos!=null&&o.pos>m?o.pos:m;},0);
-    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:modalWeek,pos:isEdit?(order.pos!=null?order.pos:maxPos+1):maxPos+1};
-    if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();payload.weekKey=order.weekKey||currentWeekKey();}
+    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',omaggio:document.getElementById('fomaggio').value.trim(),note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:modalWeek,pos:isEdit?(order.pos!=null?order.pos:maxPos+1):maxPos+1};
+    if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encOrder(payload,function(err,enc){
       if(err){toast('Errore cifratura','err');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;return;}
@@ -1143,10 +1348,14 @@ function openShipmentModal(editId){
   var u=USERS[S.uid];
   document.getElementById('smtit').textContent=isEdit?'Modifica Spedizione':'Nuova Spedizione';
   document.getElementById('sloc').value=ship?ship.locale:'';
-  document.getElementById('smer').value=ship?ship.merce:'';
+  document.getElementById('sluogo').value=ship?ship.luogo:'';
+  document.getElementById('somaggio').value=ship?ship.omaggio||'':'';
+  document.getElementById('snot').value=ship?ship.note||'':'';
   var selSSig = ship?ship.sigilli:'';
   var selSpag = ship?ship.pagamento:'';
   buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
+  var selSMer = ship?ship.merce:'';
+  buildArticoloPicker('smer-pick', selSMer, function(v){selSMer=v;});
   buildChipPicker('spag-pick', PAG_OPTS, selSpag, u.color, u.bg, function(v){selSpag=v;});
   document.getElementById('srepgrp').style.display=isEdit?'flex':'none';
 
@@ -1214,12 +1423,12 @@ function openShipmentModal(editId){
 
   var sb=document.getElementById('ssbtn');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.style.background=u.color;sb.disabled=false;
   sb.onclick=function(){
-    var locale=document.getElementById('sloc').value.trim(),merce=document.getElementById('smer').value.trim();
-    if(!locale||!merce){toast('Compila i campi obbligatori *','err');return;}
+    var locale=document.getElementById('sloc').value.trim(),merce=selSMer||'';
+    if(!locale){toast('Compila i campi obbligatori *','err');return;}
     sb.textContent='…';sb.disabled=true;
     var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});PAG_EXTRA.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
     var maxSPos=S.shipments.reduce(function(m,s){return s.pos!=null&&s.pos>m?s.pos:m;},0);
-    var payload=Object.assign({locale:locale,canale:selChan,merce:merce,sigilli:selSSig||'',pagamento:selSpag||'',userId:selRep,pos:isEdit?(ship.pos!=null?ship.pos:maxSPos+1):maxSPos+1},bools);
+    var payload=Object.assign({locale:locale,luogo:document.getElementById('sluogo').value.trim(),canale:selChan,merce:selSMer||'',sigilli:selSSig||'',pagamento:selSpag||'',omaggio:document.getElementById('somaggio').value.trim(),note:document.getElementById('snot').value.trim(),userId:selRep,pos:isEdit?(ship.pos!=null?ship.pos:maxSPos+1):maxSPos+1},bools);
     if(isEdit){payload.createdAt=ship.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encShipment(payload,function(err,enc){
@@ -1236,9 +1445,11 @@ function openShipmentModal(editId){
 function openExport(rows,title){
   document.getElementById('extit').textContent=title;
   var hdr=['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'];
-  var txt=[hdr].concat(rows.map(function(o){return[
+  var txt=[hdr].concat(rows.map(function(o){
+    var art=(o.merce||'')+(o.omaggio?(((o.merce&&o.merce.trim())?'+':'')+o.omaggio+' OMAGGIO'):'');
+    return[
     USERS[o.userId]?USERS[o.userId].label:o.userId,
-    o.locale, o.luogo, o.merce,
+    o.locale, o.luogo, art,
     o.sigilli||'', o.note||''
   ];})).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('exta').value=txt;
@@ -1249,17 +1460,19 @@ function openExport(rows,title){
 
 // ── EXPORT SHIPMENTS ──────────────────────────────────────────────────────
 function exportShipments(rows){
-  var hdr=['Azienda','Nome Locale','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso','Etichetta','Pronto','Spedito'];
+  var hdr=['Azienda','Nome Locale','Luogo Spedizione','Canale','Articoli','Sigilli','Pagamento','Proforma','Fattura','Pagato','Avviso','Etichetta','Pronto','Spedito','Note'];
   var txt=[hdr].concat(rows.map(function(s){
     return[
       USERS[s.userId]?USERS[s.userId].label:s.userId,
       s.locale,
+      s.luogo||'',
       s.canale||'',
-      s.merce,
+      (s.merce||'')+((s.omaggio&&s.omaggio.trim())?((s.merce&&s.merce.trim())?' + ':'')+s.omaggio+' OMAGGIO':''),
       s.sigilli||'',
       s.pagamento||'',
       s.proforma?'X':'',s.fattura?'X':'',s.pagato?'X':'',
-      s.avviso?'X':'',s.etichetta?'X':'',s.pacco?'X':'',s.spedito?'X':''
+      s.avviso?'X':'',s.etichetta?'X':'',s.pacco?'X':'',s.spedito?'X':'',
+      s.note||''
     ];
   })).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('extit').textContent='Esporta Spedizioni';
@@ -1400,16 +1613,6 @@ document.getElementById('movbtn').addEventListener('click',function(){
     })).then(function(){toast(ids.length+' ordini spostati ✓');closeOv();exitSelMode();});
   };
   openOv('movmod');
-});
-document.getElementById('delselbtn').addEventListener('click',function(){
-  var ids=Object.keys(selIds);
-  if(!ids.length){toast('Seleziona almeno un ordine','err');return;}
-  confirm('Eliminare i '+ids.length+' ordini selezionati?',function(){
-    Promise.all(ids.map(function(id){return ocol.doc(id).delete();})).then(function(){
-      toast(ids.length+' ordini eliminati 🗑️');
-      exitSelMode();
-    });
-  });
 });
 document.getElementById('expselbtn').addEventListener('click',function(){
   var ids=Object.keys(selIds);
