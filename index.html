@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f4f6f9">
+<meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -499,6 +500,9 @@ firebase.initializeApp({
 });
 var auth = firebase.auth();
 var db   = firebase.firestore();
+// Dati salvati anche sul telefono: ordini visibili e inseribili senza rete, inviati appena torna la connessione
+// (i campi restano cifrati anche in questa copia locale)
+db.enablePersistence({synchronizeTabs:true}).catch(function(){});
 var ocol = db.collection('orders');
 var scol = db.collection('shipments');
 
@@ -548,19 +552,33 @@ function opens(v,key){ // true/false se il campo cifrato si apre con la chiave; 
   if(typeof v!=='string'||v.length<20)return Promise.resolve(null);
   try{return decK(v,key).then(function(){return true;},function(){return false;});}catch(e){return Promise.resolve(null);}
 }
+// cb(true) = password giusta · cb(false) = password sbagliata · cb('offline') = impossibile controllare ora.
+// Senza rete si usa la copia del controllo salvata sul telefono all'ultima connessione (CHK_LOCAL):
+// la password viene comunque verificata davvero, mai "giusta" per mancanza di rete (REVIEW_REPORT_2 A1).
+var CK_ERR='', CHK_LOCAL='ds_chk';
 function checkKey(key,cb){
-  MDOC.get().then(function(d){
-    if(d.exists)return decK(d.data().check,key).then(function(v){cb(v===CHECK);},function(){cb(false);});
+  MDOC.get({source:'server'}).then(function(d){
+    if(d.exists)return decK(d.data().check,key).then(function(v){
+      var ok=v===CHECK;
+      if(ok){try{localStorage.setItem(CHK_LOCAL,d.data().check);}catch(_){} VERIFIED_ONLINE=true;}
+      cb(ok);},function(){cb(false);});
     // primo avvio con il controllo: lo crea solo se la password apre gli ordini già salvati
     return Promise.all([ocol.limit(30).get(),scol.limit(30).get()]).then(function(r){
       var docs=r[0].docs.concat(r[1].docs);
       return Promise.all(docs.map(function(x){return opens(x.data().locale,key);})).then(function(res){
         var si=res.filter(function(v){return v===true;}).length,no=res.filter(function(v){return v===false;}).length;
         if(no>si){cb(false);return;}
-        return encK(CHECK,key).then(function(c){return MDOC.set({check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});}).then(function(){cb(true);});
+        return encK(CHECK,key).then(function(c){return MDOC.set({check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''}).then(function(){try{localStorage.setItem(CHK_LOCAL,c);}catch(_){}VERIFIED_ONLINE=true;cb(true);});});
       });
     });
-  }).catch(function(){cb(true);}); // senza rete non blocca: i dati restano comunque cifrati
+  }).catch(function(e){
+    CK_ERR=(e&&e.code)||'';
+    var local=null;try{local=localStorage.getItem(CHK_LOCAL);}catch(_){}
+    if(CK_ERR==='permission-denied'||!local){cb('offline');return;}
+    decK(local,key).then(function(v){cb(v===CHECK);},function(){cb(false);}); // verifica vera, sul telefono
+  });
+}
+function ckMsg(){return CK_ERR==='permission-denied'?'Accesso al database negato: controlla le regole di Firestore.':'Nessuna connessione: per il primo accesso su questo telefono serve internet. Riprova quando c\'è campo.';
 }
 var unsub1 = null, unsub2 = null;
 var selMode = false, selIds = {};
@@ -709,12 +727,28 @@ function closeOv(){
   document.getElementById('ov').classList.remove('show');
   document.querySelectorAll('#ov .modal').forEach(function(m){m.style.display='none';});
 }
-function setConn(ok){
-  var c=document.getElementById('conn');
-  if(ok){c.className='ok';c.textContent='🔐 Cifrato · sync in tempo reale';setTimeout(function(){if(c.className==='ok')c.style.display='none';},3000);}
-  else{c.className='off';c.style.display='block';c.textContent='⚠ Offline…';}
+var CONN_STATE='', VERIFIED_ONLINE=false;
+function setConn(ok,pending){
+  var c=document.getElementById('conn'),st=ok?'ok':(pending?'pend':'off');
+  if(st===CONN_STATE)return;CONN_STATE=st;
+  if(ok){c.className='ok';c.style.display='';c.textContent='🔐 Cifrato · sync in tempo reale';setTimeout(function(){if(c.className==='ok')c.style.display='none';},3000);}
+  else{c.className='off';c.style.display='block';
+    c.textContent=pending?'⚠ Senza rete · le modifiche sono salvate sul telefono e partono appena torna la connessione':'⚠ Senza rete · stai vedendo gli ordini salvati sul telefono';}
 }
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+// stato della rete letto dai dati: "dalla copia sul telefono" o con modifiche ancora da inviare = offline
+function netFromSnap(snap){
+  var off=snap.metadata.fromCache, pend=snap.metadata.hasPendingWrites;
+  setConn(!off&&!pend, pend);
+  if(!off&&!VERIFIED_ONLINE&&CKEY){ // tornata la rete: ricontrollo la password sul server (potrebbe averla cambiata l'altro)
+    VERIFIED_ONLINE=true;
+    checkKey(CKEY,function(ok){
+      if(ok===false){if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);S.orders=[];S.shipments=[];
+        showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';}
+      else if(ok!==true)VERIFIED_ONLINE=false;
+    });
+  }
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 function parseArticoli(str) {
   // Parse "2 S, 1 L, 3 Toast" into {S:2, L:1, Toast:3}
@@ -983,7 +1017,10 @@ auth.onAuthStateChanged(function(user){
       deriveKey(saved,function(err,k){
         if(err){localStorage.removeItem(SK);showCrypto();return;}
         checkKey(k,function(ok){
-          if(!ok){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
+          if(ok==='offline'){ // non apro e non cancello la password salvata: riprovo appena torna la rete
+            showCrypto();document.getElementById('cerr').textContent=ckMsg();
+            window.addEventListener('online',function(){location.reload();},{once:true});return;}
+          if(ok!==true){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
           CKEY=k;showApp(uid);startListen();
         });
       });
@@ -995,24 +1032,25 @@ auth.onAuthStateChanged(function(user){
 function startListen(){
   if(unsub1)unsub1();
   if(unsub2)unsub2();
-  unsub1=ocol.orderBy('createdAt','asc').onSnapshot(function(snap){
+  unsub1=ocol.orderBy('createdAt','asc').onSnapshot({includeMetadataChanges:true},function(snap){
+    netFromSnap(snap);
     decList(snap.docs,decOrder,function(orders){
       if(REKEYING)return;
       var DK=DAYS.map(function(d){return d.k;});
       var unread=orders.filter(function(o){return DK.indexOf(o.day)<0;}).length;
       if(orders.length&&unread===orders.length){ // nessun ordine leggibile: password cambiata da un altro dispositivo?
-        checkKey(CKEY,function(ok){if(ok)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
+        checkKey(CKEY,function(ok){if(ok!==false)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
           S.orders=[];S.shipments=[];showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';});
         return;
       }
       if(unread&&unread!==WARNED_UNREADABLE){WARNED_UNREADABLE=unread;toast('⚠ '+unread+' ordini cifrati con un\'altra password: non visibili','err');}
-      S.orders=orders; setConn(true);
+      S.orders=orders;
       if(DRAGGING){PENDING_RENDER=true;return;}
       if(document.getElementById('shome').classList.contains('show'))renderHome();
       if(document.getElementById('sday').classList.contains('show'))renderDay();
     });
   },function(){setConn(false);});
-  unsub2=scol.orderBy('createdAt','asc').onSnapshot(function(snap){
+  unsub2=scol.orderBy('createdAt','asc').onSnapshot({includeMetadataChanges:true},function(snap){
     decList(snap.docs,decShipment,function(ships){
       if(REKEYING)return;
       S.shipments=ships;
@@ -1067,9 +1105,9 @@ function renderDay(){
   sorted.forEach(function(o){
     var u=USERS[o.userId]||USERS.FRAMEZZINO,isSel=!!selIds[o.id];
     var c=document.createElement('div');c.className='oc'+(isSel?' selected':'');c.style.borderLeftColor=u.color;c.dataset.oid=o.id;
-    var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+o.id+'">⠿</span>':'';
-    var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+o.id+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
-    var actions=!selMode?'<button class="ocb bedit" data-id="'+o.id+'">✏️</button><button class="ocb bdel" data-id="'+o.id+'" style="color:var(--red)">🗑</button>':'';
+    var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+esc(o.id)+'">⠿</span>':'';
+    var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+esc(o.id)+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
+    var actions=!selMode?'<button class="ocb bedit" data-id="'+esc(o.id)+'">✏️</button><button class="ocb bdel" data-id="'+esc(o.id)+'" style="color:var(--red)">🗑</button>':'';
     var repLine=selMode?'<div style="font-size:10px;font-weight:700;color:'+u.color+';margin-bottom:4px;">'+u.emoji+' '+u.label+'</div>':'';
     c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(o.merce)+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(o.omaggio)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
     list.appendChild(c);
@@ -1243,8 +1281,8 @@ function renderShipments(){
     }).join('');
 
     card.innerHTML=
-      '<div class="sc-head"><span class="drag-handle" data-drag="'+s.id+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
-      '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
+      '<div class="sc-head"><span class="drag-handle" data-drag="'+esc(s.id)+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
+      '<div class="oacts"><button class="ocb sedit" data-id="'+esc(s.id)+'">✏️</button><button class="ocb sdel" data-id="'+esc(s.id)+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+(s.luogo?'<div class="sc-field">📍 '+esc(s.luogo)+'</div>':'')+
       '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
@@ -1404,8 +1442,10 @@ function openOrderModal(editId,defDay){
     encOrder(payload,function(err,enc){
       if(err){toast('Errore cifratura','err');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;return;}
       var p=isEdit?ocol.doc(editId).update(enc):ocol.add(enc);
-      p.then(function(){toast(isEdit?'Ordine aggiornato ✓':'Ordine salvato ✓');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;closeOv();})
-       .catch(function(e){toast('Errore: '+e.message,'err');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;});
+      // non aspetto il server: il salvataggio è già sul telefono e parte da solo quando c'è rete
+      toast(navigator.onLine?(isEdit?'Ordine aggiornato ✓':'Ordine salvato ✓'):'Ordine salvato sul telefono ✓ · parte appena torna la rete');
+      sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;closeOv();
+      p.catch(function(e){toast('Ordine NON salvato: '+e.message,'err');});
     });
   };
   openOv('omod');
@@ -1503,8 +1543,9 @@ function openShipmentModal(editId){
     encShipment(payload,function(err,enc){
       if(err){toast('Errore cifratura','err');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;return;}
       var p=isEdit?scol.doc(editId).update(enc):scol.add(enc);
-      p.then(function(){toast(isEdit?'Spedizione aggiornata ✓':'Spedizione salvata ✓');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;closeOv();})
-       .catch(function(e){toast('Errore: '+e.message,'err');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;});
+      toast(navigator.onLine?(isEdit?'Spedizione aggiornata ✓':'Spedizione salvata ✓'):'Spedizione salvata sul telefono ✓ · parte appena torna la rete');
+      sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;closeOv();
+      p.catch(function(e){toast('Spedizione NON salvata: '+e.message,'err');});
     });
   };
   openOv('smod');
@@ -1623,7 +1664,8 @@ document.getElementById('cbtn').addEventListener('click',function(){
     if(err){document.getElementById('cerr').textContent='Errore. Riprova.';btn.textContent='Conferma e Accedi';btn.disabled=false;return;}
     checkKey(k,function(ok){
       btn.textContent='Conferma e Accedi';btn.disabled=false;
-      if(!ok){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
+      if(ok==='offline'){document.getElementById('cerr').textContent=ckMsg();return;}
+      if(ok!==true){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
       document.getElementById('cerr').textContent='';document.getElementById('cpw').value='';
       CKEY=k;localStorage.setItem(SK,pw);showApp(S.uid);startListen();
     });
@@ -1633,7 +1675,7 @@ document.getElementById('cpw').addEventListener('keydown',function(e){if(e.key==
 document.getElementById('logbtn').addEventListener('click',function(){
   confirm('Vuoi effettuare il logout?',function(){
     if(unsub1)unsub1();if(unsub2)unsub2();
-    CKEY=null;localStorage.removeItem(SK);auth.signOut();
+    CKEY=null;localStorage.removeItem(SK);localStorage.removeItem(CHK_LOCAL);auth.signOut();
   });
 });
 // ── CAMBIO PASSWORD DI CIFRATURA (scelta dall'utente): ricifra ordini e spedizioni ──
@@ -1644,14 +1686,15 @@ function deriveP(pw){return new Promise(function(res,rej){deriveKey(pw,function(
 document.getElementById('pwbtn').addEventListener('click',function(){
   var o=document.getElementById('pwold').value,n=document.getElementById('pwnew').value,n2=document.getElementById('pwnew2').value;
   var err=document.getElementById('pwerr'),btn=this,oldK,newK;err.textContent='';
+  if(!navigator.onLine){err.textContent='Per cambiare la password serve la connessione.';return;}
   if(n.length<12){err.textContent='La nuova password deve avere almeno 12 caratteri.';return;}
   if(n!==n2){err.textContent='Le due nuove password non coincidono.';return;}
   if(n===o){err.textContent='La nuova password è uguale a quella attuale.';return;}
   btn.disabled=true;btn.textContent='Ricifratura in corso…';
   function done(){btn.disabled=false;btn.textContent='Ricifra con la nuova password';REKEYING=false;}
   deriveP(o).then(function(k){oldK=k;return new Promise(function(res){checkKey(k,res);});})
-  .then(function(ok){if(!ok)throw new Error('La password attuale non è corretta.');return deriveP(n);})
-  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get(),scol.get()]);})
+  .then(function(ok){if(ok==='offline')throw new Error(ckMsg());if(ok!==true)throw new Error('La password attuale non è corretta.');return deriveP(n);})
+  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get({source:'server'}),scol.get({source:'server'})]);})
   .then(function(r){
     var lasciati=0,jobs=[];
     [[r[0],ORDER_TEXT_FIELDS,ocol],[r[1],SHIP_TEXT_FIELDS,scol]].forEach(function(g){
@@ -1668,14 +1711,16 @@ document.getElementById('pwbtn').addEventListener('click',function(){
         }));
       });
     });
+    var totale=jobs.length;
     return Promise.all(jobs).then(function(list){
       list=list.filter(Boolean);
+      if(totale&&!list.length)throw new Error('Nessun ordine si apre con la password attuale: non ho cambiato niente.');
       if(list.length>490)throw new Error('Troppi elementi ('+list.length+') per un cambio in un solo passaggio: contatta l\'assistenza.');
       return encK(CHECK,newK).then(function(c){
         var b=db.batch();  // tutto insieme: o cambia tutto o non cambia niente
         list.forEach(function(x){b.update(x.ref,x.up);});
         b.set(MDOC,{check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});
-        return b.commit().then(function(){return {n:list.length,lasciati:lasciati};});
+        return b.commit().then(function(){try{localStorage.setItem(CHK_LOCAL,c);}catch(_){}return {n:list.length,lasciati:lasciati};});
       });
     });
   })
@@ -1744,7 +1789,8 @@ document.getElementById('movbtn').addEventListener('click',function(){
       if(!order)return Promise.resolve();
       var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,omaggio:order.omaggio||'',note:order.note,day:selDay,weekKey:movWeek,pos:basePos+100*(i+1),userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
       return new Promise(function(resolve){encOrder(payload,function(err,enc){if(err)resolve();else ocol.doc(id).update(enc).then(resolve).catch(resolve);});});
-    })).then(function(){toast(ids.length+' ordini spostati ✓');closeOv();exitSelMode();});
+    }));
+    toast(ids.length+' ordini spostati ✓'+(navigator.onLine?'':' · partono appena torna la rete'));closeOv();exitSelMode();
   };
   openOv('movmod');
 });
