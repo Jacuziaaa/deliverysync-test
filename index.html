@@ -389,6 +389,20 @@ textarea{resize:none;}
     </div>
   </div>
 
+  <!-- PASSWORD MODAL: la nuova password la sceglie l'utente -->
+  <div class="modal" id="pwmod" style="display:none">
+    <div class="mh"></div>
+    <div class="mhead"><span class="mtitle">🔑 Cambia password di cifratura</span><button class="mclose" id="pwcl">✕</button></div>
+    <div class="mbody">
+      <div class="wbox"><p>La nuova password la scegli tu. Tutti gli ordini e le spedizioni vengono <strong>ricifrati</strong> con la nuova password, così nessuno resta illeggibile.<br><br>⚠️ <strong>L'altro utente dovrà inserire la nuova password</strong>: comunicagliela tu.</p></div>
+      <div class="fg"><label class="flbl">Password attuale</label><input class="finp" id="pwold" type="password" autocomplete="current-password"></div>
+      <div class="fg"><label class="flbl">Nuova password (min. 12 caratteri)</label><input class="finp" id="pwnew" type="password" autocomplete="new-password"></div>
+      <div class="fg"><label class="flbl">Ripeti la nuova password</label><input class="finp" id="pwnew2" type="password" autocomplete="new-password"></div>
+      <div class="err" id="pwerr"></div>
+      <button id="pwbtn" style="padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;background:var(--green);">Ricifra con la nuova password</button>
+    </div>
+  </div>
+
   <!-- EXPORT MODAL -->
   <div class="modal" id="exmod" style="display:none">
     <div class="mh"></div>
@@ -516,6 +530,38 @@ var SK = 'ds_cpw';
 
 var S = {uid:null, orders:[], shipments:[], day:null, tab:'home', week:null};
 var CKEY = null;
+// ── CONTROLLO PASSWORD DI CIFRATURA ──────────────────────────────────────
+// Un documento di controllo (ds_meta/cifratura) cifrato con la password giusta: una password diversa
+// viene rifiutata invece di nascondere in silenzio gli ordini creati con l'altra.
+var MDOC = db.collection('ds_meta').doc('cifratura'), CHECK = 'deliverysync-ok', REKEYING = false, WARNED_UNREADABLE = 0;
+function encK(str,key){
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  return crypto.subtle.encrypt({name:'AES-GCM',iv:iv},key,new TextEncoder().encode(str)).then(function(ct){
+    var b=new Uint8Array(12+ct.byteLength);b.set(iv,0);b.set(new Uint8Array(ct),12);
+    var s='';for(var i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(s);});
+}
+function decK(b64,key){
+  var buf=Uint8Array.from(atob(b64),function(c){return c.charCodeAt(0);});
+  return crypto.subtle.decrypt({name:'AES-GCM',iv:buf.slice(0,12)},key,buf.slice(12)).then(function(pt){return new TextDecoder().decode(pt);});
+}
+function opens(v,key){ // true/false se il campo cifrato si apre con la chiave; null se non è un campo cifrato
+  if(typeof v!=='string'||v.length<20)return Promise.resolve(null);
+  try{return decK(v,key).then(function(){return true;},function(){return false;});}catch(e){return Promise.resolve(null);}
+}
+function checkKey(key,cb){
+  MDOC.get().then(function(d){
+    if(d.exists)return decK(d.data().check,key).then(function(v){cb(v===CHECK);},function(){cb(false);});
+    // primo avvio con il controllo: lo crea solo se la password apre gli ordini già salvati
+    return Promise.all([ocol.limit(30).get(),scol.limit(30).get()]).then(function(r){
+      var docs=r[0].docs.concat(r[1].docs);
+      return Promise.all(docs.map(function(x){return opens(x.data().locale,key);})).then(function(res){
+        var si=res.filter(function(v){return v===true;}).length,no=res.filter(function(v){return v===false;}).length;
+        if(no>si){cb(false);return;}
+        return encK(CHECK,key).then(function(c){return MDOC.set({check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});}).then(function(){cb(true);});
+      });
+    });
+  }).catch(function(){cb(true);}); // senza rete non blocca: i dati restano comunque cifrati
+}
 var unsub1 = null, unsub2 = null;
 var selMode = false, selIds = {};
 
@@ -584,6 +630,7 @@ function encOrder(o,cb){
     createdAt:o.createdAt||new Date().toISOString(),
     updatedAt:o.updatedAt||null,
     weekKey:o.weekKey||currentWeekKey(),
+    wv:2,                     // settimana in formato ISO (vedi normWeek)
     pos:o.pos!=null?o.pos:null,
     v:2
   },cb);
@@ -592,7 +639,7 @@ function decOrder(id,d,cb){
   decFields(id,d,ORDER_TEXT_FIELDS,function(err,r){
     if(err){cb(err,null);return;}
     r.createdAt=d.createdAt; r.updatedAt=d.updatedAt;
-    r.weekKey=d.weekKey||null;
+    r.weekKey=normWeek(d.weekKey,d.wv);
     r.pos=d.pos!=null?d.pos:null;
     cb(null,r);
   });
@@ -784,31 +831,40 @@ function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, o
 function hideLoader(){document.getElementById('loader').style.display='none';}
 
 // ── WEEK HELPERS ──────────────────────────────────────────────────────────────
+// Settimane ISO (lunedì-domenica): corrette per ogni anno.
+// La versione precedente sbagliava dal 2027 (saltava settimane: ordini "spariti").
 function getWeekKey(date) {
-  // Returns "YYYY-WNN" based on Monday-start week
-  var d = new Date(date);
-  d.setHours(0,0,0,0);
-  // Set to nearest Monday
-  var day = d.getDay() || 7;
-  d.setDate(d.getDate() - day + 1);
-  var year = d.getFullYear();
-  var start = new Date(year, 0, 1);
-  var week = Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7);
-  return year + '-W' + String(week).padStart(2,'0');
+  var d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  d.setDate(d.getDate() + 4 - (d.getDay() || 7));           // giovedì della stessa settimana
+  var y = d.getFullYear();
+  var days = Math.round((d - new Date(y, 0, 1)) / 86400000);  // round: immune all'ora legale
+  return y + '-W' + String(Math.floor(days / 7) + 1).padStart(2,'0');
 }
 
 function getWeekStart(weekKey) {
-  // Returns Monday Date for a given weekKey
-  var parts = weekKey.split('-W');
-  var year = parseInt(parts[0]);
-  var week = parseInt(parts[1]);
-  var jan1 = new Date(year, 0, 1);
-  var jan1Day = jan1.getDay() || 7;
-  var mondayOffset = (jan1Day <= 4) ? (1 - jan1Day) : (8 - jan1Day);
-  var firstMonday = new Date(year, 0, 1 + mondayOffset);
-  var monday = new Date(firstMonday);
-  monday.setDate(firstMonday.getDate() + (week - 1) * 7);
+  var parts = weekKey.split('-W'), year = parseInt(parts[0]), week = parseInt(parts[1]);
+  var jan4 = new Date(year, 0, 4);                          // il 4 gennaio è sempre nella settimana 1
+  var monday = new Date(year, 0, 4 - ((jan4.getDay() || 7) - 1));
+  monday.setDate(monday.getDate() + (week - 1) * 7);
   return monday;
+}
+
+// Chiavi salvate dalla versione precedente (senza wv:2): le riconduco al loro lunedì vero
+function legacyWeekKey(date) {
+  var d = new Date(date); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - (d.getDay() || 7) + 1);
+  var start = new Date(d.getFullYear(), 0, 1);
+  return d.getFullYear() + '-W' + String(Math.ceil(((d - start) / 86400000 + start.getDay() + 1) / 7)).padStart(2,'0');
+}
+var _legacyCache = {};
+function normWeek(k, wv) {
+  if (!k || wv === 2) return k || null;
+  if (_legacyCache[k] !== undefined) return _legacyCache[k];
+  var y = parseInt(k.split('-W')[0]), res = k;
+  for (var m = new Date(y - 1, 11, 20); m < new Date(y + 1, 0, 10); m.setDate(m.getDate() + 1)) {
+    if (m.getDay() === 1 && legacyWeekKey(m) === k) { res = getWeekKey(m); break; }
+  }
+  return (_legacyCache[k] = res);
 }
 
 function weekKeyOffset(weekKey, offset) {
@@ -926,7 +982,10 @@ auth.onAuthStateChanged(function(user){
     if(saved){
       deriveKey(saved,function(err,k){
         if(err){localStorage.removeItem(SK);showCrypto();return;}
-        CKEY=k;showApp(uid);startListen();
+        checkKey(k,function(ok){
+          if(!ok){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
+          CKEY=k;showApp(uid);startListen();
+        });
       });
     }else{showCrypto();}
   }else{showLogin();}
@@ -938,6 +997,15 @@ function startListen(){
   if(unsub2)unsub2();
   unsub1=ocol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decOrder,function(orders){
+      if(REKEYING)return;
+      var DK=DAYS.map(function(d){return d.k;});
+      var unread=orders.filter(function(o){return DK.indexOf(o.day)<0;}).length;
+      if(orders.length&&unread===orders.length){ // nessun ordine leggibile: password cambiata da un altro dispositivo?
+        checkKey(CKEY,function(ok){if(ok)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
+          S.orders=[];S.shipments=[];showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';});
+        return;
+      }
+      if(unread&&unread!==WARNED_UNREADABLE){WARNED_UNREADABLE=unread;toast('⚠ '+unread+' ordini cifrati con un\'altra password: non visibili','err');}
       S.orders=orders; setConn(true);
       if(DRAGGING){PENDING_RENDER=true;return;}
       if(document.getElementById('shome').classList.contains('show'))renderHome();
@@ -946,6 +1014,7 @@ function startListen(){
   },function(){setConn(false);});
   unsub2=scol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decShipment,function(ships){
+      if(REKEYING)return;
       S.shipments=ships;
       if(DRAGGING){PENDING_RENDER=true;return;}
       if(document.getElementById('shome').classList.contains('show'))renderHome();
@@ -1552,7 +1621,12 @@ document.getElementById('cbtn').addEventListener('click',function(){
   var btn=document.getElementById('cbtn');btn.textContent='…';btn.disabled=true;
   deriveKey(pw,function(err,k){
     if(err){document.getElementById('cerr').textContent='Errore. Riprova.';btn.textContent='Conferma e Accedi';btn.disabled=false;return;}
-    CKEY=k;localStorage.setItem(SK,pw);showApp(S.uid);startListen();
+    checkKey(k,function(ok){
+      btn.textContent='Conferma e Accedi';btn.disabled=false;
+      if(!ok){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
+      document.getElementById('cerr').textContent='';document.getElementById('cpw').value='';
+      CKEY=k;localStorage.setItem(SK,pw);showApp(S.uid);startListen();
+    });
   });
 });
 document.getElementById('cpw').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('cbtn').click();});
@@ -1562,6 +1636,57 @@ document.getElementById('logbtn').addEventListener('click',function(){
     CKEY=null;localStorage.removeItem(SK);auth.signOut();
   });
 });
+// ── CAMBIO PASSWORD DI CIFRATURA (scelta dall'utente): ricifra ordini e spedizioni ──
+function openPwModal(){['pwold','pwnew','pwnew2'].forEach(function(i){document.getElementById(i).value='';});document.getElementById('pwerr').textContent='';openOv('pwmod');}
+['enc','upill'].forEach(function(id){var e=document.getElementById(id);e.style.cursor='pointer';e.title='Cambia password di cifratura';e.addEventListener('click',openPwModal);});
+document.getElementById('pwcl').addEventListener('click',closeOv);
+function deriveP(pw){return new Promise(function(res,rej){deriveKey(pw,function(e,k){if(e)rej(e);else res(k);});});}
+document.getElementById('pwbtn').addEventListener('click',function(){
+  var o=document.getElementById('pwold').value,n=document.getElementById('pwnew').value,n2=document.getElementById('pwnew2').value;
+  var err=document.getElementById('pwerr'),btn=this,oldK,newK;err.textContent='';
+  if(n.length<12){err.textContent='La nuova password deve avere almeno 12 caratteri.';return;}
+  if(n!==n2){err.textContent='Le due nuove password non coincidono.';return;}
+  if(n===o){err.textContent='La nuova password è uguale a quella attuale.';return;}
+  btn.disabled=true;btn.textContent='Ricifratura in corso…';
+  function done(){btn.disabled=false;btn.textContent='Ricifra con la nuova password';REKEYING=false;}
+  deriveP(o).then(function(k){oldK=k;return new Promise(function(res){checkKey(k,res);});})
+  .then(function(ok){if(!ok)throw new Error('La password attuale non è corretta.');return deriveP(n);})
+  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get(),scol.get()]);})
+  .then(function(r){
+    var lasciati=0,jobs=[];
+    [[r[0],ORDER_TEXT_FIELDS,ocol],[r[1],SHIP_TEXT_FIELDS,scol]].forEach(function(g){
+      g[0].docs.forEach(function(doc){
+        var d=doc.data();
+        jobs.push(Promise.all(g[1].map(function(f){
+          var v=d[f];
+          if(typeof v!=='string'||v.length<20)return Promise.resolve({f:f,v:v,ok:true}); // vuoto o non cifrato
+          return decK(v,oldK).then(function(p){return encK(p,newK).then(function(c){return {f:f,v:c,ok:true};});},function(){return {f:f,v:v,ok:false};});
+        })).then(function(arr){
+          if(arr.some(function(a){return !a.ok;})){lasciati++;return null;} // non si apre con la password attuale: non lo tocco
+          var up={};arr.forEach(function(a){if(a.v!==undefined)up[a.f]=a.v;});
+          return {ref:g[2].doc(doc.id),up:up};
+        }));
+      });
+    });
+    return Promise.all(jobs).then(function(list){
+      list=list.filter(Boolean);
+      if(list.length>490)throw new Error('Troppi elementi ('+list.length+') per un cambio in un solo passaggio: contatta l\'assistenza.');
+      return encK(CHECK,newK).then(function(c){
+        var b=db.batch();  // tutto insieme: o cambia tutto o non cambia niente
+        list.forEach(function(x){b.update(x.ref,x.up);});
+        b.set(MDOC,{check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});
+        return b.commit().then(function(){return {n:list.length,lasciati:lasciati};});
+      });
+    });
+  })
+  .then(function(res){
+    CKEY=newK;localStorage.setItem(SK,n);done();closeOv();
+    toast('Password cambiata ✓ '+res.n+' elementi ricifrati'+(res.lasciati?' · '+res.lasciati+' lasciati com\'erano':''));
+    startListen();
+  })
+  .catch(function(e){done();err.textContent=e.message||'Errore: riprova.';});
+});
+
 document.getElementById('back').addEventListener('click',function(){document.getElementById('bnav').classList.add('show');switchTab(S.tab==='ship'?'ship':'home');});
 document.getElementById('fab').addEventListener('click',function(){
   if(S.tab==='ship')openShipmentModal(null);
@@ -1570,8 +1695,13 @@ document.getElementById('fab').addEventListener('click',function(){
 document.getElementById('selbtn').addEventListener('click',function(){if(!selMode)enterSelMode();else exitSelMode();});
 document.getElementById('cancelbtn').addEventListener('click',exitSelMode);
 document.getElementById('rbtn').addEventListener('click',function(){
-  confirm('Eliminare tutti gli ordini di questa giornata?',function(){
-    var del=S.orders.filter(function(o){return o.day===S.day;});
+  // SOLO il giorno della settimana che si sta guardando (prima cancellava quel giorno in TUTTE le settimane)
+  var wk=S.dayWeek||S.week||currentWeekKey();
+  var del=S.orders.filter(function(o){return o.day===S.day&&(o.weekKey||currentWeekKey())===wk;});
+  if(!del.length){toast('Nessun ordine da eliminare');return;}
+  var di=DAYS.findIndex(function(d){return d.k===S.day;}),dt=getWeekStart(wk);dt.setDate(dt.getDate()+di);
+  var mesi=['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+  confirm('Eliminare '+(del.length===1?"l'ordine":'i '+del.length+' ordini')+' di '+DAYS[di].l.toLowerCase()+' '+dt.getDate()+' '+mesi[dt.getMonth()]+'?',function(){
     Promise.all(del.map(function(o){return ocol.doc(o.id).delete();})).then(function(){toast(del.length+' ordini eliminati 🗑️');});
   });
 });
@@ -1605,10 +1735,14 @@ document.getElementById('movbtn').addEventListener('click',function(){
   document.getElementById('movconfirm').onclick=function(){
     if(!selDay){toast('Seleziona un giorno','err');return;}
     var ids=Object.keys(selIds);
-    Promise.all(ids.map(function(id){
+    // in coda al giorno di arrivo, nello stesso ordine in cui erano
+    var dest=S.orders.filter(function(o){return o.day===selDay&&(o.weekKey||currentWeekKey())===movWeek&&!selIds[o.id];});
+    var basePos=dest.reduce(function(m,o){return o.pos!=null&&o.pos>m?o.pos:m;},0);
+    ids.sort(function(a,b){var oa=S.orders.find(function(o){return o.id===a;})||{},ob=S.orders.find(function(o){return o.id===b;})||{};return (oa.pos||0)-(ob.pos||0);});
+    Promise.all(ids.map(function(id,i){
       var order=S.orders.find(function(o){return o.id===id;});
       if(!order)return Promise.resolve();
-      var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,note:order.note,day:selDay,weekKey:movWeek,userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
+      var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,omaggio:order.omaggio||'',note:order.note,day:selDay,weekKey:movWeek,pos:basePos+100*(i+1),userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
       return new Promise(function(resolve){encOrder(payload,function(err,enc){if(err)resolve();else ocol.doc(id).update(enc).then(resolve).catch(resolve);});});
     })).then(function(){toast(ids.length+' ordini spostati ✓');closeOv();exitSelMode();});
   };
