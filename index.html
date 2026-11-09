@@ -6,7 +6,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f4f6f9">
-<meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -235,6 +234,7 @@ textarea{resize:none;}
   #hdr{padding:10px 10px 10px 12px;}
 }
 @media (max-width:370px){
+  #reset-all-btn{padding:3px 6px !important;}
   .hb{padding:4px 3px;}
   .scr{padding:10px;}
   .art-picker{gap:6px;}
@@ -394,20 +394,12 @@ textarea{resize:none;}
     <div class="mh"></div>
     <div class="mhead"><span class="mtitle">🔑 Cambia password di cifratura</span><button class="mclose" id="pwcl">✕</button></div>
     <div class="mbody">
-      <label class="flbl">🔑 Cambia password di cifratura</label>
       <div class="wbox"><p>La nuova password la scegli tu. Tutti gli ordini e le spedizioni vengono <strong>ricifrati</strong> con la nuova password, così nessuno resta illeggibile.<br><br>⚠️ <strong>L'altro utente dovrà inserire la nuova password</strong>: comunicagliela tu.</p></div>
       <div class="fg"><label class="flbl">Password attuale</label><input class="finp" id="pwold" type="password" autocomplete="current-password"></div>
       <div class="fg"><label class="flbl">Nuova password (min. 12 caratteri)</label><input class="finp" id="pwnew" type="password" autocomplete="new-password"></div>
       <div class="fg"><label class="flbl">Ripeti la nuova password</label><input class="finp" id="pwnew2" type="password" autocomplete="new-password"></div>
       <div class="err" id="pwerr"></div>
       <button id="pwbtn" style="padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;background:var(--green);">Ricifra con la nuova password</button>
-      <div class="fg" style="border-top:1.5px solid var(--border);margin-top:10px;padding-top:16px;">
-        <label class="flbl" style="color:var(--red);">🗑 Elimina tutti i dati dell'app</label>
-        <p style="font-size:12px;color:var(--sub);line-height:1.6;">Cancella <strong>tutti gli ordini e tutte le spedizioni</strong>, di tutte le settimane e di entrambi gli utenti. <strong>Non si può annullare.</strong> Per confermare scrivi <strong>ELIMINA</strong>.</p>
-        <input class="finp" id="delconf" autocomplete="off" autocapitalize="characters" placeholder="Scrivi ELIMINA">
-        <div class="err" id="delerr"></div>
-        <button id="delbtn" disabled style="padding:14px;border-radius:12px;font-size:15px;font-weight:800;color:#fff;background:var(--red);opacity:.35;">Elimina tutti i dati</button>
-      </div>
     </div>
   </div>
 
@@ -428,7 +420,7 @@ textarea{resize:none;}
   <div id="hdr">
     <div id="hleft"><button id="back">‹</button><div><div id="htitle">DeliverySync</div><div id="hsub"></div></div></div>
     <div id="hright"><span id="enc">🔐<span class="enct"> AES-256</span></span>
-      <div id="upill"></div><a class="hb" href="https://jacuziaaa.github.io/framezzino-network/" title="Framezzino Network (mappa clienti)" style="text-decoration:none">🗺️</a><button class="hb" id="logbtn">↩</button></div>
+      <button id="reset-all-btn" title="Azzera tutti gli ordini" style="font-size:11px;font-weight:700;color:var(--red);padding:3px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid #fca5a5;cursor:pointer;line-height:1;">🗑</button><div id="upill"></div><a class="hb" href="https://jacuziaaa.github.io/framezzino-network/" title="Framezzino Network (mappa clienti)" style="text-decoration:none">🗺️</a><button class="hb" id="logbtn">↩</button></div>
   </div>
   <div id="conn"></div>
   <div id="main">
@@ -507,9 +499,6 @@ firebase.initializeApp({
 });
 var auth = firebase.auth();
 var db   = firebase.firestore();
-// Dati salvati anche sul telefono: ordini visibili e inseribili senza rete, inviati appena torna la connessione
-// (i campi restano cifrati anche in questa copia locale)
-db.enablePersistence({synchronizeTabs:true}).catch(function(){});
 var ocol = db.collection('orders');
 var scol = db.collection('shipments');
 
@@ -559,33 +548,19 @@ function opens(v,key){ // true/false se il campo cifrato si apre con la chiave; 
   if(typeof v!=='string'||v.length<20)return Promise.resolve(null);
   try{return decK(v,key).then(function(){return true;},function(){return false;});}catch(e){return Promise.resolve(null);}
 }
-// cb(true) = password giusta · cb(false) = password sbagliata · cb('offline') = impossibile controllare ora.
-// Senza rete si usa la copia del controllo salvata sul telefono all'ultima connessione (CHK_LOCAL):
-// la password viene comunque verificata davvero, mai "giusta" per mancanza di rete (REVIEW_REPORT_2 A1).
-var CK_ERR='', CHK_LOCAL='ds_chk';
 function checkKey(key,cb){
-  MDOC.get({source:'server'}).then(function(d){
-    if(d.exists)return decK(d.data().check,key).then(function(v){
-      var ok=v===CHECK;
-      if(ok){try{localStorage.setItem(CHK_LOCAL,d.data().check);}catch(_){} VERIFIED_ONLINE=true;}
-      cb(ok);},function(){cb(false);});
+  MDOC.get().then(function(d){
+    if(d.exists)return decK(d.data().check,key).then(function(v){cb(v===CHECK);},function(){cb(false);});
     // primo avvio con il controllo: lo crea solo se la password apre gli ordini già salvati
     return Promise.all([ocol.limit(30).get(),scol.limit(30).get()]).then(function(r){
       var docs=r[0].docs.concat(r[1].docs);
       return Promise.all(docs.map(function(x){return opens(x.data().locale,key);})).then(function(res){
         var si=res.filter(function(v){return v===true;}).length,no=res.filter(function(v){return v===false;}).length;
         if(no>si){cb(false);return;}
-        return encK(CHECK,key).then(function(c){return MDOC.set({check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''}).then(function(){try{localStorage.setItem(CHK_LOCAL,c);}catch(_){}VERIFIED_ONLINE=true;cb(true);});});
+        return encK(CHECK,key).then(function(c){return MDOC.set({check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});}).then(function(){cb(true);});
       });
     });
-  }).catch(function(e){
-    CK_ERR=(e&&e.code)||'';
-    var local=null;try{local=localStorage.getItem(CHK_LOCAL);}catch(_){}
-    if(CK_ERR==='permission-denied'||!local){cb('offline');return;}
-    decK(local,key).then(function(v){cb(v===CHECK);},function(){cb(false);}); // verifica vera, sul telefono
-  });
-}
-function ckMsg(){return CK_ERR==='permission-denied'?'Accesso al database negato: controlla le regole di Firestore.':'Nessuna connessione: per il primo accesso su questo telefono serve internet. Riprova quando c\'è campo.';
+  }).catch(function(){cb(true);}); // senza rete non blocca: i dati restano comunque cifrati
 }
 var unsub1 = null, unsub2 = null;
 var selMode = false, selIds = {};
@@ -734,28 +709,12 @@ function closeOv(){
   document.getElementById('ov').classList.remove('show');
   document.querySelectorAll('#ov .modal').forEach(function(m){m.style.display='none';});
 }
-var CONN_STATE='', VERIFIED_ONLINE=false;
-function setConn(ok,pending){
-  var c=document.getElementById('conn'),st=ok?'ok':(pending?'pend':'off');
-  if(st===CONN_STATE)return;CONN_STATE=st;
-  if(ok){c.className='ok';c.style.display='';c.textContent='🔐 Cifrato · sync in tempo reale';setTimeout(function(){if(c.className==='ok')c.style.display='none';},3000);}
-  else{c.className='off';c.style.display='block';
-    c.textContent=pending?'⚠ Senza rete · le modifiche sono salvate sul telefono e partono appena torna la connessione':'⚠ Senza rete · stai vedendo gli ordini salvati sul telefono';}
+function setConn(ok){
+  var c=document.getElementById('conn');
+  if(ok){c.className='ok';c.textContent='🔐 Cifrato · sync in tempo reale';setTimeout(function(){if(c.className==='ok')c.style.display='none';},3000);}
+  else{c.className='off';c.style.display='block';c.textContent='⚠ Offline…';}
 }
-// stato della rete letto dai dati: "dalla copia sul telefono" o con modifiche ancora da inviare = offline
-function netFromSnap(snap){
-  var off=snap.metadata.fromCache, pend=snap.metadata.hasPendingWrites;
-  setConn(!off&&!pend, pend);
-  if(!off&&!VERIFIED_ONLINE&&CKEY){ // tornata la rete: ricontrollo la password sul server (potrebbe averla cambiata l'altro)
-    VERIFIED_ONLINE=true;
-    checkKey(CKEY,function(ok){
-      if(ok===false){if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);S.orders=[];S.shipments=[];
-        showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';}
-      else if(ok!==true)VERIFIED_ONLINE=false;
-    });
-  }
-}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 function parseArticoli(str) {
   // Parse "2 S, 1 L, 3 Toast" into {S:2, L:1, Toast:3}
@@ -1024,10 +983,7 @@ auth.onAuthStateChanged(function(user){
       deriveKey(saved,function(err,k){
         if(err){localStorage.removeItem(SK);showCrypto();return;}
         checkKey(k,function(ok){
-          if(ok==='offline'){ // non apro e non cancello la password salvata: riprovo appena torna la rete
-            showCrypto();document.getElementById('cerr').textContent=ckMsg();
-            window.addEventListener('online',function(){location.reload();},{once:true});return;}
-          if(ok!==true){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
+          if(!ok){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
           CKEY=k;showApp(uid);startListen();
         });
       });
@@ -1039,25 +995,24 @@ auth.onAuthStateChanged(function(user){
 function startListen(){
   if(unsub1)unsub1();
   if(unsub2)unsub2();
-  unsub1=ocol.orderBy('createdAt','asc').onSnapshot({includeMetadataChanges:true},function(snap){
-    netFromSnap(snap);
+  unsub1=ocol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decOrder,function(orders){
       if(REKEYING)return;
       var DK=DAYS.map(function(d){return d.k;});
       var unread=orders.filter(function(o){return DK.indexOf(o.day)<0;}).length;
       if(orders.length&&unread===orders.length){ // nessun ordine leggibile: password cambiata da un altro dispositivo?
-        checkKey(CKEY,function(ok){if(ok!==false)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
+        checkKey(CKEY,function(ok){if(ok)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
           S.orders=[];S.shipments=[];showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';});
         return;
       }
       if(unread&&unread!==WARNED_UNREADABLE){WARNED_UNREADABLE=unread;toast('⚠ '+unread+' ordini cifrati con un\'altra password: non visibili','err');}
-      S.orders=orders;
+      S.orders=orders; setConn(true);
       if(DRAGGING){PENDING_RENDER=true;return;}
       if(document.getElementById('shome').classList.contains('show'))renderHome();
       if(document.getElementById('sday').classList.contains('show'))renderDay();
     });
   },function(){setConn(false);});
-  unsub2=scol.orderBy('createdAt','asc').onSnapshot({includeMetadataChanges:true},function(snap){
+  unsub2=scol.orderBy('createdAt','asc').onSnapshot(function(snap){
     decList(snap.docs,decShipment,function(ships){
       if(REKEYING)return;
       S.shipments=ships;
@@ -1112,9 +1067,9 @@ function renderDay(){
   sorted.forEach(function(o){
     var u=USERS[o.userId]||USERS.FRAMEZZINO,isSel=!!selIds[o.id];
     var c=document.createElement('div');c.className='oc'+(isSel?' selected':'');c.style.borderLeftColor=u.color;c.dataset.oid=o.id;
-    var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+esc(o.id)+'">⠿</span>':'';
-    var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+esc(o.id)+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
-    var actions=!selMode?'<button class="ocb bedit" data-id="'+esc(o.id)+'">✏️</button><button class="ocb bdel" data-id="'+esc(o.id)+'" style="color:var(--red)">🗑</button>':'';
+    var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+o.id+'">⠿</span>':'';
+    var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+o.id+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
+    var actions=!selMode?'<button class="ocb bedit" data-id="'+o.id+'">✏️</button><button class="ocb bdel" data-id="'+o.id+'" style="color:var(--red)">🗑</button>':'';
     var repLine=selMode?'<div style="font-size:10px;font-weight:700;color:'+u.color+';margin-bottom:4px;">'+u.emoji+' '+u.label+'</div>':'';
     c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(o.merce)+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(o.omaggio)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
     list.appendChild(c);
@@ -1288,8 +1243,8 @@ function renderShipments(){
     }).join('');
 
     card.innerHTML=
-      '<div class="sc-head"><span class="drag-handle" data-drag="'+esc(s.id)+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
-      '<div class="oacts"><button class="ocb sedit" data-id="'+esc(s.id)+'">✏️</button><button class="ocb sdel" data-id="'+esc(s.id)+'" style="color:var(--red)">🗑</button></div></div>'+
+      '<div class="sc-head"><span class="drag-handle" data-drag="'+s.id+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
+      '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+(s.luogo?'<div class="sc-field">📍 '+esc(s.luogo)+'</div>':'')+
       '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
@@ -1449,10 +1404,8 @@ function openOrderModal(editId,defDay){
     encOrder(payload,function(err,enc){
       if(err){toast('Errore cifratura','err');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;return;}
       var p=isEdit?ocol.doc(editId).update(enc):ocol.add(enc);
-      // non aspetto il server: il salvataggio è già sul telefono e parte da solo quando c'è rete
-      toast(navigator.onLine?(isEdit?'Ordine aggiornato ✓':'Ordine salvato ✓'):'Ordine salvato sul telefono ✓ · parte appena torna la rete');
-      sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;closeOv();
-      p.catch(function(e){toast('Ordine NON salvato: '+e.message,'err');});
+      p.then(function(){toast(isEdit?'Ordine aggiornato ✓':'Ordine salvato ✓');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;closeOv();})
+       .catch(function(e){toast('Errore: '+e.message,'err');sb.textContent=isEdit?'Aggiorna Ordine':'Salva Ordine';sb.disabled=false;});
     });
   };
   openOv('omod');
@@ -1550,9 +1503,8 @@ function openShipmentModal(editId){
     encShipment(payload,function(err,enc){
       if(err){toast('Errore cifratura','err');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;return;}
       var p=isEdit?scol.doc(editId).update(enc):scol.add(enc);
-      toast(navigator.onLine?(isEdit?'Spedizione aggiornata ✓':'Spedizione salvata ✓'):'Spedizione salvata sul telefono ✓ · parte appena torna la rete');
-      sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;closeOv();
-      p.catch(function(e){toast('Spedizione NON salvata: '+e.message,'err');});
+      p.then(function(){toast(isEdit?'Spedizione aggiornata ✓':'Spedizione salvata ✓');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;closeOv();})
+       .catch(function(e){toast('Errore: '+e.message,'err');sb.textContent=isEdit?'Aggiorna Spedizione':'Salva Spedizione';sb.disabled=false;});
     });
   };
   openOv('smod');
@@ -1605,9 +1557,18 @@ function exitSelMode(){selMode=false;selIds={};document.getElementById('selbar')
 
 // ── EVENTS ────────────────────────────────────────────────────────────────
 // Week navigation
-// (2026-11-09) Tolto il cestino "elimina TUTTI gli ordini di tutte le settimane" dalla barra in alto:
-// troppo vicino a 🔐 e al nome utente, e due conferme superabili con un doppio tocco (REVIEW_REPORT_2 A2).
-// Per svuotare un giorno resta "Azzera" nella vista del giorno (solo la settimana visibile).
+// Reset ALL orders
+document.getElementById('reset-all-btn').addEventListener('click',function(){
+  confirm('Eliminare TUTTI gli ordini dal database? Questa operazione è irreversibile.',function(){
+    confirm('Sei assolutamente sicuro? Verranno eliminati tutti gli ordini di tutte le settimane.',function(){
+      var allIds = S.orders.map(function(o){return o.id;});
+      if(!allIds.length){toast('Nessun ordine da eliminare');return;}
+      Promise.all(allIds.map(function(id){return ocol.doc(id).delete();}))
+        .then(function(){toast(allIds.length+' ordini eliminati 🗑️');})
+        .catch(function(e){toast('Errore: '+e.message,'err');});
+    });
+  });
+});
 
 // ── HISTORY / TASTO INDIETRO ─────────────────────────────────────────────
 history.replaceState({screen:'home'},'','');
@@ -1662,8 +1623,7 @@ document.getElementById('cbtn').addEventListener('click',function(){
     if(err){document.getElementById('cerr').textContent='Errore. Riprova.';btn.textContent='Conferma e Accedi';btn.disabled=false;return;}
     checkKey(k,function(ok){
       btn.textContent='Conferma e Accedi';btn.disabled=false;
-      if(ok==='offline'){document.getElementById('cerr').textContent=ckMsg();return;}
-      if(ok!==true){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
+      if(!ok){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
       document.getElementById('cerr').textContent='';document.getElementById('cpw').value='';
       CKEY=k;localStorage.setItem(SK,pw);showApp(S.uid);startListen();
     });
@@ -1673,46 +1633,25 @@ document.getElementById('cpw').addEventListener('keydown',function(e){if(e.key==
 document.getElementById('logbtn').addEventListener('click',function(){
   confirm('Vuoi effettuare il logout?',function(){
     if(unsub1)unsub1();if(unsub2)unsub2();
-    CKEY=null;localStorage.removeItem(SK);localStorage.removeItem(CHK_LOCAL);auth.signOut();
+    CKEY=null;localStorage.removeItem(SK);auth.signOut();
   });
 });
 // ── CAMBIO PASSWORD DI CIFRATURA (scelta dall'utente): ricifra ordini e spedizioni ──
-function openPwModal(){['pwold','pwnew','pwnew2','delconf'].forEach(function(i){document.getElementById(i).value='';});
-  document.getElementById('pwerr').textContent='';document.getElementById('delerr').textContent='';
-  var db_=document.getElementById('delbtn');db_.disabled=true;db_.style.opacity=.35;db_.textContent='Elimina tutti i dati';openOv('pwmod');}
-// ── ELIMINA TUTTI I DATI (misura di sicurezza voluta da Jacopo): solo scrivendo ELIMINA + ultima conferma con i numeri ──
-document.getElementById('delconf').addEventListener('input',function(){
-  var ok=this.value.trim().toUpperCase()==='ELIMINA',b=document.getElementById('delbtn');b.disabled=!ok;b.style.opacity=ok?1:.35;});
-document.getElementById('delbtn').addEventListener('click',function(){
-  var btn=this,err=document.getElementById('delerr');err.textContent='';
-  if(document.getElementById('delconf').value.trim().toUpperCase()!=='ELIMINA')return;
-  Promise.all([ocol.get(),scol.get()]).then(function(r){
-    var refs=r[0].docs.map(function(d){return ocol.doc(d.id);}).concat(r[1].docs.map(function(d){return scol.doc(d.id);}));
-    if(!refs.length){err.textContent='Non ci sono dati da eliminare.';return;}
-    confirm('Ultima conferma: eliminare '+r[0].size+' ordini e '+r[1].size+' spedizioni? Non si può annullare.',function(){
-      var chunks=[];for(var i=0;i<refs.length;i+=450)chunks.push(refs.slice(i,i+450));
-      var p=chunks.reduce(function(acc,ch){return acc.then(function(){var b=db.batch();ch.forEach(function(x){b.delete(x);});return b.commit();});},Promise.resolve());
-      closeOv();
-      toast(refs.length+' elementi eliminati 🗑️'+(navigator.onLine?'':' · anche dal server appena torna la rete'));
-      p.catch(function(e){toast('Eliminazione non completata: '+e.message,'err');});
-    });
-  }).catch(function(e){err.textContent='Errore: '+e.message;});
-});
+function openPwModal(){['pwold','pwnew','pwnew2'].forEach(function(i){document.getElementById(i).value='';});document.getElementById('pwerr').textContent='';openOv('pwmod');}
 ['enc','upill'].forEach(function(id){var e=document.getElementById(id);e.style.cursor='pointer';e.title='Cambia password di cifratura';e.addEventListener('click',openPwModal);});
 document.getElementById('pwcl').addEventListener('click',closeOv);
 function deriveP(pw){return new Promise(function(res,rej){deriveKey(pw,function(e,k){if(e)rej(e);else res(k);});});}
 document.getElementById('pwbtn').addEventListener('click',function(){
   var o=document.getElementById('pwold').value,n=document.getElementById('pwnew').value,n2=document.getElementById('pwnew2').value;
   var err=document.getElementById('pwerr'),btn=this,oldK,newK;err.textContent='';
-  if(!navigator.onLine){err.textContent='Per cambiare la password serve la connessione.';return;}
   if(n.length<12){err.textContent='La nuova password deve avere almeno 12 caratteri.';return;}
   if(n!==n2){err.textContent='Le due nuove password non coincidono.';return;}
   if(n===o){err.textContent='La nuova password è uguale a quella attuale.';return;}
   btn.disabled=true;btn.textContent='Ricifratura in corso…';
   function done(){btn.disabled=false;btn.textContent='Ricifra con la nuova password';REKEYING=false;}
   deriveP(o).then(function(k){oldK=k;return new Promise(function(res){checkKey(k,res);});})
-  .then(function(ok){if(ok==='offline')throw new Error(ckMsg());if(ok!==true)throw new Error('La password attuale non è corretta.');return deriveP(n);})
-  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get({source:'server'}),scol.get({source:'server'})]);})
+  .then(function(ok){if(!ok)throw new Error('La password attuale non è corretta.');return deriveP(n);})
+  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get(),scol.get()]);})
   .then(function(r){
     var lasciati=0,jobs=[];
     [[r[0],ORDER_TEXT_FIELDS,ocol],[r[1],SHIP_TEXT_FIELDS,scol]].forEach(function(g){
@@ -1729,16 +1668,14 @@ document.getElementById('pwbtn').addEventListener('click',function(){
         }));
       });
     });
-    var totale=jobs.length;
     return Promise.all(jobs).then(function(list){
       list=list.filter(Boolean);
-      if(totale&&!list.length)throw new Error('Nessun ordine si apre con la password attuale: non ho cambiato niente.');
       if(list.length>490)throw new Error('Troppi elementi ('+list.length+') per un cambio in un solo passaggio: contatta l\'assistenza.');
       return encK(CHECK,newK).then(function(c){
         var b=db.batch();  // tutto insieme: o cambia tutto o non cambia niente
         list.forEach(function(x){b.update(x.ref,x.up);});
         b.set(MDOC,{check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});
-        return b.commit().then(function(){try{localStorage.setItem(CHK_LOCAL,c);}catch(_){}return {n:list.length,lasciati:lasciati};});
+        return b.commit().then(function(){return {n:list.length,lasciati:lasciati};});
       });
     });
   })
@@ -1807,8 +1744,7 @@ document.getElementById('movbtn').addEventListener('click',function(){
       if(!order)return Promise.resolve();
       var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,omaggio:order.omaggio||'',note:order.note,day:selDay,weekKey:movWeek,pos:basePos+100*(i+1),userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
       return new Promise(function(resolve){encOrder(payload,function(err,enc){if(err)resolve();else ocol.doc(id).update(enc).then(resolve).catch(resolve);});});
-    }));
-    toast(ids.length+' ordini spostati ✓'+(navigator.onLine?'':' · partono appena torna la rete'));closeOv();exitSelMode();
+    })).then(function(){toast(ids.length+' ordini spostati ✓');closeOv();exitSelMode();});
   };
   openOv('movmod');
 });
