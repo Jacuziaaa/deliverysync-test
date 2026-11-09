@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f4f6f9">
+<meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -234,7 +235,6 @@ textarea{resize:none;}
   #hdr{padding:10px 10px 10px 12px;}
 }
 @media (max-width:370px){
-  #reset-all-btn{padding:3px 6px !important;}
   .hb{padding:4px 3px;}
   .scr{padding:10px;}
   .art-picker{gap:6px;}
@@ -420,7 +420,7 @@ textarea{resize:none;}
   <div id="hdr">
     <div id="hleft"><button id="back">‹</button><div><div id="htitle">DeliverySync</div><div id="hsub"></div></div></div>
     <div id="hright"><span id="enc">🔐<span class="enct"> AES-256</span></span>
-      <button id="reset-all-btn" title="Azzera tutti gli ordini" style="font-size:11px;font-weight:700;color:var(--red);padding:3px 8px;border-radius:8px;background:var(--surface2);border:1.5px solid #fca5a5;cursor:pointer;line-height:1;">🗑</button><div id="upill"></div><a class="hb" href="https://jacuziaaa.github.io/framezzino-network/" title="Framezzino Network (mappa clienti)" style="text-decoration:none">🗺️</a><button class="hb" id="logbtn">↩</button></div>
+      <div id="upill"></div><a class="hb" href="https://jacuziaaa.github.io/framezzino-network/" title="Framezzino Network (mappa clienti)" style="text-decoration:none">🗺️</a><button class="hb" id="logbtn">↩</button></div>
   </div>
   <div id="conn"></div>
   <div id="main">
@@ -548,8 +548,11 @@ function opens(v,key){ // true/false se il campo cifrato si apre con la chiave; 
   if(typeof v!=='string'||v.length<20)return Promise.resolve(null);
   try{return decK(v,key).then(function(){return true;},function(){return false;});}catch(e){return Promise.resolve(null);}
 }
+// cb(true) = password giusta · cb(false) = password sbagliata · cb('offline') = impossibile controllare ora
+// (mai "giusta" per mancanza di rete: era il punto A1 di REVIEW_REPORT_2)
+var CK_ERR='';
 function checkKey(key,cb){
-  MDOC.get().then(function(d){
+  MDOC.get({source:'server'}).then(function(d){
     if(d.exists)return decK(d.data().check,key).then(function(v){cb(v===CHECK);},function(){cb(false);});
     // primo avvio con il controllo: lo crea solo se la password apre gli ordini già salvati
     return Promise.all([ocol.limit(30).get(),scol.limit(30).get()]).then(function(r){
@@ -560,7 +563,9 @@ function checkKey(key,cb){
         return encK(CHECK,key).then(function(c){return MDOC.set({check:c,creato:new Date().toISOString(),da:(auth.currentUser&&auth.currentUser.email)||''});}).then(function(){cb(true);});
       });
     });
-  }).catch(function(){cb(true);}); // senza rete non blocca: i dati restano comunque cifrati
+  }).catch(function(e){CK_ERR=(e&&e.code)||'';cb('offline');});
+}
+function ckMsg(){return CK_ERR==='permission-denied'?'Accesso al database negato: controlla le regole di Firestore.':'Nessuna connessione: serve internet per controllare la password. Riprova quando c\'è campo.';
 }
 var unsub1 = null, unsub2 = null;
 var selMode = false, selIds = {};
@@ -714,7 +719,7 @@ function setConn(ok){
   if(ok){c.className='ok';c.textContent='🔐 Cifrato · sync in tempo reale';setTimeout(function(){if(c.className==='ok')c.style.display='none';},3000);}
   else{c.className='off';c.style.display='block';c.textContent='⚠ Offline…';}
 }
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 function parseArticoli(str) {
   // Parse "2 S, 1 L, 3 Toast" into {S:2, L:1, Toast:3}
@@ -983,7 +988,10 @@ auth.onAuthStateChanged(function(user){
       deriveKey(saved,function(err,k){
         if(err){localStorage.removeItem(SK);showCrypto();return;}
         checkKey(k,function(ok){
-          if(!ok){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
+          if(ok==='offline'){ // non apro e non cancello la password salvata: riprovo appena torna la rete
+            showCrypto();document.getElementById('cerr').textContent=ckMsg();
+            window.addEventListener('online',function(){location.reload();},{once:true});return;}
+          if(ok!==true){localStorage.removeItem(SK);showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';return;}
           CKEY=k;showApp(uid);startListen();
         });
       });
@@ -1001,7 +1009,7 @@ function startListen(){
       var DK=DAYS.map(function(d){return d.k;});
       var unread=orders.filter(function(o){return DK.indexOf(o.day)<0;}).length;
       if(orders.length&&unread===orders.length){ // nessun ordine leggibile: password cambiata da un altro dispositivo?
-        checkKey(CKEY,function(ok){if(ok)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
+        checkKey(CKEY,function(ok){if(ok!==false)return;if(unsub1)unsub1();if(unsub2)unsub2();CKEY=null;localStorage.removeItem(SK);
           S.orders=[];S.shipments=[];showCrypto();document.getElementById('cerr').textContent='La password di cifratura è stata cambiata: inserisci quella nuova.';});
         return;
       }
@@ -1067,9 +1075,9 @@ function renderDay(){
   sorted.forEach(function(o){
     var u=USERS[o.userId]||USERS.FRAMEZZINO,isSel=!!selIds[o.id];
     var c=document.createElement('div');c.className='oc'+(isSel?' selected':'');c.style.borderLeftColor=u.color;c.dataset.oid=o.id;
-    var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+o.id+'">⠿</span>':'';
-    var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+o.id+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
-    var actions=!selMode?'<button class="ocb bedit" data-id="'+o.id+'">✏️</button><button class="ocb bdel" data-id="'+o.id+'" style="color:var(--red)">🗑</button>':'';
+    var dragHandle=!selMode?'<span class="drag-handle" data-drag="'+esc(o.id)+'">⠿</span>':'';
+    var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+esc(o.id)+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
+    var actions=!selMode?'<button class="ocb bedit" data-id="'+esc(o.id)+'">✏️</button><button class="ocb bdel" data-id="'+esc(o.id)+'" style="color:var(--red)">🗑</button>':'';
     var repLine=selMode?'<div style="font-size:10px;font-weight:700;color:'+u.color+';margin-bottom:4px;">'+u.emoji+' '+u.label+'</div>':'';
     c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(o.merce)+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(o.omaggio)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
     list.appendChild(c);
@@ -1243,8 +1251,8 @@ function renderShipments(){
     }).join('');
 
     card.innerHTML=
-      '<div class="sc-head"><span class="drag-handle" data-drag="'+s.id+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
-      '<div class="oacts"><button class="ocb sedit" data-id="'+s.id+'">✏️</button><button class="ocb sdel" data-id="'+s.id+'" style="color:var(--red)">🗑</button></div></div>'+
+      '<div class="sc-head"><span class="drag-handle" data-drag="'+esc(s.id)+'">⠿</span><span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>'+
+      '<div class="oacts"><button class="ocb sedit" data-id="'+esc(s.id)+'">✏️</button><button class="ocb sdel" data-id="'+esc(s.id)+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+(s.luogo?'<div class="sc-field">📍 '+esc(s.luogo)+'</div>':'')+
       '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
@@ -1557,18 +1565,9 @@ function exitSelMode(){selMode=false;selIds={};document.getElementById('selbar')
 
 // ── EVENTS ────────────────────────────────────────────────────────────────
 // Week navigation
-// Reset ALL orders
-document.getElementById('reset-all-btn').addEventListener('click',function(){
-  confirm('Eliminare TUTTI gli ordini dal database? Questa operazione è irreversibile.',function(){
-    confirm('Sei assolutamente sicuro? Verranno eliminati tutti gli ordini di tutte le settimane.',function(){
-      var allIds = S.orders.map(function(o){return o.id;});
-      if(!allIds.length){toast('Nessun ordine da eliminare');return;}
-      Promise.all(allIds.map(function(id){return ocol.doc(id).delete();}))
-        .then(function(){toast(allIds.length+' ordini eliminati 🗑️');})
-        .catch(function(e){toast('Errore: '+e.message,'err');});
-    });
-  });
-});
+// (2026-11-09) Tolto il cestino "elimina TUTTI gli ordini di tutte le settimane" dalla barra in alto:
+// troppo vicino a 🔐 e al nome utente, e due conferme superabili con un doppio tocco (REVIEW_REPORT_2 A2).
+// Per svuotare un giorno resta "Azzera" nella vista del giorno (solo la settimana visibile).
 
 // ── HISTORY / TASTO INDIETRO ─────────────────────────────────────────────
 history.replaceState({screen:'home'},'','');
@@ -1623,7 +1622,8 @@ document.getElementById('cbtn').addEventListener('click',function(){
     if(err){document.getElementById('cerr').textContent='Errore. Riprova.';btn.textContent='Conferma e Accedi';btn.disabled=false;return;}
     checkKey(k,function(ok){
       btn.textContent='Conferma e Accedi';btn.disabled=false;
-      if(!ok){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
+      if(ok==='offline'){document.getElementById('cerr').textContent=ckMsg();return;}
+      if(ok!==true){document.getElementById('cerr').textContent='Password di cifratura errata: non apre gli ordini salvati.';return;}
       document.getElementById('cerr').textContent='';document.getElementById('cpw').value='';
       CKEY=k;localStorage.setItem(SK,pw);showApp(S.uid);startListen();
     });
@@ -1650,8 +1650,8 @@ document.getElementById('pwbtn').addEventListener('click',function(){
   btn.disabled=true;btn.textContent='Ricifratura in corso…';
   function done(){btn.disabled=false;btn.textContent='Ricifra con la nuova password';REKEYING=false;}
   deriveP(o).then(function(k){oldK=k;return new Promise(function(res){checkKey(k,res);});})
-  .then(function(ok){if(!ok)throw new Error('La password attuale non è corretta.');return deriveP(n);})
-  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get(),scol.get()]);})
+  .then(function(ok){if(ok==='offline')throw new Error(ckMsg());if(ok!==true)throw new Error('La password attuale non è corretta.');return deriveP(n);})
+  .then(function(k){newK=k;REKEYING=true;return Promise.all([ocol.get({source:'server'}),scol.get({source:'server'})]);})
   .then(function(r){
     var lasciati=0,jobs=[];
     [[r[0],ORDER_TEXT_FIELDS,ocol],[r[1],SHIP_TEXT_FIELDS,scol]].forEach(function(g){
@@ -1668,8 +1668,10 @@ document.getElementById('pwbtn').addEventListener('click',function(){
         }));
       });
     });
+    var totale=jobs.length;
     return Promise.all(jobs).then(function(list){
       list=list.filter(Boolean);
+      if(totale&&!list.length)throw new Error('Nessun ordine si apre con la password attuale: non ho cambiato niente.');
       if(list.length>490)throw new Error('Troppi elementi ('+list.length+') per un cambio in un solo passaggio: contatta l\'assistenza.');
       return encK(CHECK,newK).then(function(c){
         var b=db.batch();  // tutto insieme: o cambia tutto o non cambia niente
