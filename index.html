@@ -16,6 +16,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="../framezzino-network/config.js"></script>
 <style>
 :root {
   --bg:#f4f6f9; --surface:#fff; --surface2:#f0f2f5;
@@ -202,6 +203,19 @@ textarea{resize:none;}
 #exta{height:130px;font-size:11px;color:var(--muted);font-family:monospace;}
 #cpbtn{padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:var(--green);color:#fff;}
 #xlsbtn{margin-top:8px;padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:#1d6f42;color:#fff;}
+.cli-sugg{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.cli-sugg button{text-align:left;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:13px;font-weight:700;color:var(--text)}
+.cli-sugg small{display:block;color:var(--muted);font-size:11px;font-weight:500}
+.cli-info{font-size:12px;margin-top:6px;color:var(--muted);line-height:1.45}
+.cli-info a{color:#0ea5e9;font-weight:700;text-decoration:none;margin-left:8px;white-space:nowrap}
+.art-row.abit{background:#fff4d6;box-shadow:inset 3px 0 0 #f59e0b}
+.giro-st{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.giro-st small{display:block;color:var(--muted);font-size:11px}
+.giro-btns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.giro-btns button,.giro-btns a{padding:8px 11px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:12px;font-weight:700;color:var(--text);text-decoration:none}
+.giro-btns .on{background:#1d6f42;color:#fff;border-color:#1d6f42}
+.giro-box{border:1.5px solid var(--border);border-radius:12px;padding:10px;margin-top:10px;background:#fff}
+.giro-box h4{margin:0 0 4px;font-size:14px}
 
 #selbar{display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 
@@ -316,7 +330,7 @@ textarea{resize:none;}
       </div>
       <div class="fg"><label class="flbl">Giorno di consegna</label><div class="dpick" id="dpick"></div></div>
       <div class="fg" id="repgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="rpick"></div></div>
-      <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="floc" placeholder=""></div>
+      <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="floc" placeholder="" autocomplete="off"><div id="fcli-sugg"></div><div id="fcli-info" class="cli-info"></div></div>
       <div class="fg"><label class="flbl">📍 Luogo Consegna</label><input class="finp" id="fluo" placeholder=""></div>
       <div class="fg"><label class="flbl">📦 Articoli</label><div id="fmer-pick"></div></div>
       <div class="fg"><label class="flbl">🎁 Omaggio</label><input class="finp" id="fomaggio" placeholder=""></div>
@@ -405,6 +419,13 @@ textarea{resize:none;}
     </div>
   </div>
 
+  <!-- GIRO MODAL -->
+  <div class="modal" id="giromod" style="display:none">
+    <div class="mh"></div>
+    <div class="mhead"><span class="mtitle">🧭 Giro</span><button class="mclose" id="girocl">✕</button></div>
+    <div class="mbody" id="girobody"></div>
+  </div>
+
   <!-- EXPORT MODAL -->
   <div class="modal" id="exmod" style="display:none">
     <div class="mh"></div>
@@ -457,6 +478,7 @@ textarea{resize:none;}
         <div id="dtbtns">
           <button class="tbtn" id="selbtn">☑ Seleziona</button>
           <button class="tbtn" id="rbtn" style="color:var(--red);border-color:#fca5a5;">🗑 Azzera</button>
+          <button class="tbtn" id="girobtn">🧭 Giro</button>
           <button class="tbtn" id="ebtn">📋 Esporta</button>
         </div>
       </div>
@@ -643,7 +665,7 @@ function decFields(id,d,fields,cb){
   next();
 }
 
-var ORDER_TEXT_FIELDS = ['locale','luogo','merce','sigilli','omaggio','note','day','userId'];
+var ORDER_TEXT_FIELDS = ['locale','luogo','merce','sigilli','omaggio','note','day','userId','cliente'];  // cliente = scheda della mappa
 var SHIP_TEXT_FIELDS  = ['locale','luogo','canale','merce','sigilli','pagamento','omaggio','note','userId'];
 
 function encOrder(o,cb){
@@ -786,7 +808,7 @@ function buildArticoloPicker(containerId, currentVal, onChange) {
 
     function makeRow(k) {
       var row = document.createElement('div');
-      row.className = 'art-row';
+      row.className = 'art-row' + (ABIT_ART.indexOf(k) >= 0 ? ' abit' : '');  // quello che prende di solito
       var lbl = document.createElement('span'); lbl.className='art-label'; lbl.textContent=k;
       var ctrl = document.createElement('div'); ctrl.className='art-ctrl';
       var btnM = document.createElement('button'); btnM.className='art-btn'; btnM.textContent='−'; btnM.type='button';
@@ -1033,6 +1055,7 @@ auth.onAuthStateChanged(function(user){
 
 // ── LISTENERS ─────────────────────────────────────────────────────────────
 function startListen(){
+  avviaClientiMappa();
   if(unsub1)unsub1();
   if(unsub2)unsub2();
   unsub1=ocol.orderBy('createdAt','asc').onSnapshot({includeMetadataChanges:true},function(snap){
@@ -1397,11 +1420,32 @@ function openOrderModal(editId,defDay){
   document.getElementById('fomaggio').value=order?order.omaggio||'':'';
   document.getElementById('fnot').value=order?order.note:'';
   document.getElementById('repgrp').style.display=isEdit?'flex':'none';
-  var selMer = order?order.merce:'';
+  var selMer = order?order.merce:'';ABIT_ART=[];
   buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});
 
   var selSig = order?order.sigilli:'';
   buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});
+
+  // cliente dalla mappa: suggerimenti mentre scrivi il locale (scrivere a mano va sempre bene), abitudini evidenziate,
+  // "Correggi" apre la sua scheda nell'app della mappa; cliente non in elenco = "nuovo"
+  var selCli=order&&order.cliente?order.cliente:null;
+  var fl=document.getElementById('floc'),sg=document.getElementById('fcli-sugg'),inf=document.getElementById('fcli-info');
+  sg.innerHTML='';
+  function evidenzia(c){var nuovo=c?abitudini(c):[];if(nuovo.join('|')===ABIT_ART.join('|'))return;ABIT_ART=nuovo;buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});}
+  function info(){var c=selCli&&NCLI.perId[selCli],t=fl.value.trim();
+    if(c){inf.innerHTML='✓ Cliente della mappa · '+esc(testoAbitudini(c))+'<a href="'+URL_MAPPA+'#cliente='+encodeURIComponent(c._doc)+'" target="_blank" rel="noopener">✏️ Correggi</a>';return;}
+    if(NCLI.stato==='nokey'){inf.textContent='Elenco clienti della mappa non disponibile su questo telefono: apri una volta l\'app Framezzino Network.';return;}
+    inf.innerHTML=t&&NCLI.lista.length?'🆕 Non è nell\'elenco della mappa (va bene lo stesso)<a href="'+URL_MAPPA+'#nuovo" target="_blank" rel="noopener">＋ Aggiungilo alla mappa</a>':'';}
+  fl.oninput=function(){selCli=null;evidenzia(null);sg.innerHTML='';var l=fl.value.trim().length>=2?cercaClienti(fl.value):[];
+    if(l.length){var box=document.createElement('div');box.className='cli-sugg';
+      l.forEach(function(c){var b=document.createElement('button');b.type='button';
+        var refs=(c.referenti||[]).map(function(r){return r.nome;}).filter(Boolean).join(', ');
+        b.innerHTML=esc(c.locale||c.nomeGoogle)+'<small>'+esc(luogoDi(c))+(refs?' · '+esc(refs):'')+'</small>';
+        b.onclick=function(){selCli=c._doc;fl.value=c.locale||c.nomeGoogle||'';document.getElementById('fluo').value=luogoDi(c);sg.innerHTML='';evidenzia(c);info();};
+        box.appendChild(b);});
+      sg.appendChild(box);}
+    info();};
+  evidenzia(selCli&&NCLI.perId[selCli]);info();
 
   // Settimana selezionata nel modal
   var modalWeek = order ? (order.weekKey||currentWeekKey()) : (S.dayWeek||S.week||currentWeekKey());
@@ -1439,7 +1483,7 @@ function openOrderModal(editId,defDay){
     sb.textContent='…';sb.disabled=true;
     var dayOrders=S.orders.filter(function(o){return o.day===selDay&&(o.weekKey||currentWeekKey())===modalWeek;});
     var maxPos=dayOrders.reduce(function(m,o){return o.pos!=null&&o.pos>m?o.pos:m;},0);
-    var payload={locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',omaggio:document.getElementById('fomaggio').value.trim(),note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:modalWeek,pos:isEdit?(order.pos!=null?order.pos:maxPos+1):maxPos+1};
+    var payload={cliente:selCli||'',locale:locale,luogo:luogo,merce:merce,sigilli:selSig||'',omaggio:document.getElementById('fomaggio').value.trim(),note:document.getElementById('fnot').value.trim(),day:selDay,userId:selRep,weekKey:modalWeek,pos:isEdit?(order.pos!=null?order.pos:maxPos+1):maxPos+1};
     if(isEdit){payload.createdAt=order.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encOrder(payload,function(err,enc){
@@ -1553,6 +1597,153 @@ function openShipmentModal(editId){
   };
   openOv('smod');
 }
+
+// ── CLIENTI DELLA MAPPA (22/11): l'elenco dei clienti dell'app Framezzino Network (stesso sito, stesso accesso Firebase,
+// chiave della mappa gia' salvata nel telefono da quell'app). Solo lettura: serve a scegliere il cliente nel nuovo ordine,
+// a vedere le sue abitudini e a fare il giro. Scrivere il locale a mano resta sempre possibile.
+var NCLI={lista:[],perId:{},stato:'',unsub:null},URL_MAPPA='../framezzino-network/',ABIT_ART=[];
+function nNorm(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();}
+function nKey(){return new Promise(function(res){try{var r=indexedDB.open('fn-keys',1);r.onupgradeneeded=function(){r.result.createObjectStore('k');};r.onerror=function(){res(null);};
+  r.onsuccess=function(){try{var q=r.result.transaction('k','readonly').objectStore('k').get('key');q.onsuccess=function(){res(q.result||null);};q.onerror=function(){res(null);};}catch(e){res(null);}};}catch(e){res(null);}});}
+function nDec(s,k){var b=Uint8Array.from(atob(s),function(c){return c.charCodeAt(0);});
+  return crypto.subtle.decrypt({name:'AES-GCM',iv:b.slice(0,12)},k,b.slice(12)).then(function(pt){return JSON.parse(new TextDecoder().decode(pt));});}
+function avviaClientiMappa(){nKey().then(function(k){if(!k){NCLI.stato='nokey';return;}
+  if(NCLI.unsub)NCLI.unsub();
+  NCLI.unsub=db.collection('network_clienti').onSnapshot(function(snap){
+    Promise.all(snap.docs.map(function(d){var x=d.data();return x&&x.d?nDec(x.d,k).then(function(c){c._doc=d.id;return c;}).catch(function(){return null;}):null;}))
+      .then(function(l){NCLI.lista=l.filter(Boolean);NCLI.perId={};NCLI.lista.forEach(function(c){NCLI.perId[c._doc]=c;});NCLI.stato=NCLI.lista.length?'ok':'vuoto';});
+  },function(){NCLI.stato='errore';});});}
+var PROD_ART={'s':['S'],'m':['M'],'l':['L'],'magnum':['MAGNUM'],'xl':['MAGNUM'],'xxl':['XXL'],'rettangolari':['RETT.'],'panini':['PANINI'],'toast':['TOAST'],
+  'tostoni':['TOSTONI'],'tostone':['TOSTONI'],'maxi tostoni':['MAXI TST.'],'maxi tostone':['MAXI TST.'],'galaxy':['GALAXY'],'club':['CLUB'],'veline':['VEL. 18x25','VEL. 25x37']};
+function abitudini(c){var art=[];(c.prodotti||[]).forEach(function(p){(PROD_ART[nNorm(p).trim()]||[]).forEach(function(a){if(art.indexOf(a)<0)art.push(a);});});return art;}
+function testoAbitudini(c){var p=(c.prodotti||[]).join(' · '),s=(c.sigilli||[]).join(' · ');return (p?'Prende di solito: '+p:'Prodotti non segnati in rubrica')+(s?' · Sigilli: '+s:'');}
+function luogoDi(c){var via=String(c.indirizzo||'').split(/,\s*\d{5}/)[0];return (c.comune||'')+(via&&via!==c.comune?', '+via:'');}
+function cercaClienti(q){var t=nNorm(q).trim().split(/\s+/).filter(Boolean);if(!t.length)return [];
+  return NCLI.lista.filter(function(c){var h=nNorm([c.locale,c.nomeGoogle,c.comune,c.indirizzo,(c.referenti||[]).map(function(r){return (r.nome||'')+' '+(r.contatto||'');}).join(' ')].join(' '));
+    return t.every(function(x){return h.indexOf(x)>=0;});}).slice(0,8);}
+
+// ── 🧭 GIRO (22/11): l'ordine migliore delle consegne del giorno, calcolato da Google (Routes API con la chiave della mappa,
+// tetto giornaliero in Google Cloud). Partenza dal magazzino (alle 8) o da dove sei adesso, ritorno al magazzino. Due varianti
+// (più veloce / senza autostrada e pedaggi) con km e ore; "Dividi in due" per Jacopo e Marco; "Naviga" apre Google Maps.
+// Le consegne senza posizione (clienti nuovi non sulla mappa) restano fuori dal calcolo, in fondo: "📍 Trova" le cerca su Google.
+var MAGAZZINO={nome:'Magazzino',lat:45.6301932,lng:11.309741},SOSTA_MIN=7,GIRO={};
+function kmTra(a,b){var R=6371,r=Math.PI/180,h=Math.pow(Math.sin((b.lat-a.lat)*r/2),2)+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.pow(Math.sin((b.lng-a.lng)*r/2),2);return 2*R*Math.asin(Math.sqrt(h));}
+function posizioneOrdine(o){var c=o.cliente&&NCLI.perId[o.cliente];
+  if(c&&c.lat!=null)return {lat:c.lat,lng:c.lng,come:'mappa'};
+  if(GIRO.trovati&&GIRO.trovati[o.id])return GIRO.trovati[o.id];
+  var nl=nNorm(o.locale).trim(),lu=nNorm(o.luogo);
+  var m=nl?NCLI.lista.filter(function(x){return x.lat!=null&&nNorm(x.locale).trim()===nl&&(!x.comune||lu.indexOf(nNorm(x.comune))>=0);}):[];
+  return m.length===1?{lat:m[0].lat,lng:m[0].lng,come:'nome'}:null;}
+function stimaMin(dep,pts){if(!pts.length)return 0;var resto=pts.slice(),cur=dep,giro=[];
+  while(resto.length){var bi=0,bd=1e9;resto.forEach(function(p,i){var d=kmTra(cur,p);if(d<bd){bd=d;bi=i;}});cur=resto.splice(bi,1)[0];giro.push(cur);}
+  var lun=function(g){var s=kmTra(dep,g[0])+kmTra(g[g.length-1],dep);for(var i=1;i<g.length;i++)s+=kmTra(g[i-1],g[i]);return s;};
+  var meglio=true,best=lun(giro);while(meglio){meglio=false;for(var i=0;i<giro.length-1;i++)for(var j=i+1;j<giro.length;j++){
+    var g=giro.slice(0,i).concat(giro.slice(i,j+1).reverse(),giro.slice(j+1)),l=lun(g);if(l<best-0.01){best=l;giro=g;meglio=true;}}}
+  return best*1.3/50*60+pts.length*SOSTA_MIN;}
+function dividiInDue(dep,pts){var n=pts.length;if(n<2)return [pts,[]];
+  var ang=pts.map(function(p){return {p:p,a:Math.atan2(p.lat-dep.lat,(p.lng-dep.lng)*Math.cos(dep.lat*Math.PI/180))};}).sort(function(x,y){return x.a-y.a;}).map(function(x){return x.p;});
+  var best=null;for(var s=0;s<n;s++)for(var k=1;k<n;k++){var rot=ang.slice(s).concat(ang.slice(0,s)),A=rot.slice(0,k),B=rot.slice(k);
+    var v=Math.max(stimaMin(dep,A),stimaMin(dep,B));if(!best||v<best.v)best={v:v,A:A,B:B};}
+  return [best.A,best.B];}
+function calcolaPercorso(partenza,tappe,senzaAutostrada){
+  if(!window.MAPS_KEY)return Promise.reject(new Error('Chiave Google non trovata (si carica dall\'app della mappa): serve internet.'));
+  if(tappe.length>25)return Promise.reject(new Error('Più di 25 tappe: usa «Dividi in due».'));
+  var ll=function(p){return {location:{latLng:{latitude:p.lat,longitude:p.lng}}};};
+  var body={origin:ll(partenza),destination:ll(MAGAZZINO),intermediates:tappe.map(ll),travelMode:'DRIVE',routingPreference:'TRAFFIC_AWARE',
+    optimizeWaypointOrder:tappe.length>1,languageCode:'it',units:'METRIC'};
+  if(senzaAutostrada)body.routeModifiers={avoidHighways:true,avoidTolls:true};
+  return fetch('https://routes.googleapis.com/directions/v2:computeRoutes',{method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'application/json','X-Goog-Api-Key':window.MAPS_KEY,
+      'X-Goog-FieldMask':'routes.duration,routes.distanceMeters,routes.optimizedIntermediateWaypointIndex'}})
+    .then(function(r){return r.json().catch(function(){return {};}).then(function(j){
+      if(!r.ok){var m=(j.error&&j.error.message)||('errore '+r.status);throw new Error(/disabled|not been used|blocked|not authorized/i.test(m)?'Il calcolo dei percorsi di Google non è ancora attivo (va attivato in Google Cloud).':'Google: '+m);}return j;});})
+    .then(function(j){var rt=(j.routes||[])[0];if(!rt)throw new Error('Google non ha trovato un percorso.');
+      var idx=rt.optimizedIntermediateWaypointIndex&&rt.optimizedIntermediateWaypointIndex.length===tappe.length?rt.optimizedIntermediateWaypointIndex:tappe.map(function(_,i){return i;});
+      return {ordine:idx.map(function(i){return tappe[i];}),km:Math.round((rt.distanceMeters||0)/100)/10,min:Math.round((parseInt(rt.duration)||0)/60)};});}
+function oreMin(m){return Math.floor(m/60)+' h '+String(m%60).padStart(2,'0');}
+function rientro(inizio,min){var d=new Date(inizio.getTime()+min*60000);return d.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});}
+function linkNaviga(p){return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination='+p.lat+','+p.lng;}
+function linkGiro(partenza,tappe){var punti=[partenza].concat(tappe,[MAGAZZINO]),out=[];  // Google Maps: al massimo 9 tappe intermedie per link
+  for(var i=0;i<punti.length-1;i+=10){var pezzo=punti.slice(i,Math.min(i+11,punti.length));if(pezzo.length<2)break;
+    var s=function(p){return p.lat+','+p.lng;};
+    out.push('https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+s(pezzo[0])+'&destination='+s(pezzo[pezzo.length-1])+
+      (pezzo.length>2?'&waypoints='+encodeURIComponent(pezzo.slice(1,-1).map(s).join('|')):''));}
+  return out;}
+function righeOrdini(rows){return rows.map(function(o){return [USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale||'',o.luogo||'',
+  nomiNuovi((o.merce||'')+(o.omaggio?(((o.merce&&o.merce.trim())?'+':'')+o.omaggio+' OMAGGIO'):'')),o.sigilli||'',o.note||''];});}
+function excelGiro(rows,titolo){salvaExcel({titolo:titolo,nome:'Giro',colonne:['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'],
+  larghezze:[14,30,26,32,14,36],righe:righeOrdini(rows),totali:totaliArticoli(rows),orizzontale:false});}
+function applicaOrdine(sequenza,tutti){var ids={},b=db.batch(),i=0;
+  sequenza.concat(tutti).forEach(function(o){if(ids[o.id])return;ids[o.id]=1;i++;b.update(ocol.doc(o.id),{pos:i*100});});
+  return b.commit();}
+function openGiro(rows,giorno){
+  GIRO={rows:rows,giorno:giorno,scelti:{},trovati:GIRO.trovati||{},partenza:'magazzino',qui:null,ris:null};
+  rows.forEach(function(o){GIRO.scelti[o.id]=true;});
+  disegnaGiro();openOv('giromod');}
+function disegnaGiro(){var B=document.getElementById('girobody'),G=GIRO;B.innerHTML='';
+  function bott(txt,on,fn,cls){var b=document.createElement('button');b.type='button';b.textContent=txt;if(on)b.className='on';if(cls)b.style.cssText=cls;b.onclick=fn;return b;}
+  function div(cls,html){var d=document.createElement('div');if(cls)d.className=cls;if(html!=null)d.innerHTML=html;return d;}
+  B.appendChild(div('', '<div style="font-size:13px;color:var(--muted)">'+esc(G.giorno)+' · '+G.rows.length+' consegne · sosta '+SOSTA_MIN+' min per cliente</div>'));
+  var pb=div('giro-btns');pb.appendChild(div('', '<b style="font-size:12px;align-self:center">Partenza:</b>'));
+  pb.appendChild(bott('🏭 Magazzino (alle 8)',G.partenza==='magazzino',function(){G.partenza='magazzino';G.ris=null;disegnaGiro();}));
+  pb.appendChild(bott('📍 Da dove sono adesso',G.partenza==='qui',function(){if(!navigator.geolocation){toast('Posizione non disponibile','err');return;}
+    toast('Cerco la tua posizione…');navigator.geolocation.getCurrentPosition(function(p){G.qui={lat:p.coords.latitude,lng:p.coords.longitude};G.partenza='qui';G.ris=null;disegnaGiro();},
+      function(){toast('Posizione non disponibile: consenti la posizione a DeliverySync','err');},{enableHighAccuracy:true,timeout:15000});}));
+  B.appendChild(pb);
+  var lista=div('');G.rows.forEach(function(o){var p=posizioneOrdine(o),r=div('giro-st');
+    var cb=document.createElement('input');cb.type='checkbox';cb.checked=!!G.scelti[o.id];cb.onchange=function(){G.scelti[o.id]=cb.checked;G.ris=null;disegnaGiro();};
+    r.appendChild(cb);var tx=div('', '<b>'+esc(o.locale)+'</b><small>'+esc(o.luogo||'')+' · '+(p?(p.come==='mappa'?'📍 dalla mappa':p.come==='nome'?'📍 trovato per nome':'📍 trovato su Google'):'⚠ senza posizione: resta fuori dal calcolo')+'</small>');
+    tx.style.flex='1';r.appendChild(tx);
+    if(!p)r.appendChild(bott('📍 Trova',false,function(){trovaSuGoogle(o);},'padding:6px 9px;border-radius:9px;border:1.5px solid var(--border);background:var(--surface2);font-size:12px;font-weight:700'));
+    lista.appendChild(r);});
+  B.appendChild(lista);
+  var ab=div('giro-btns');
+  ab.appendChild(bott('⚡ Calcola il giro',false,function(){calcolaUno();},'background:#1d6f42;color:#fff;border-color:#1d6f42'));
+  ab.appendChild(bott('✂️ Dividi in due (Jacopo e Marco)',false,function(){calcolaDue();}));
+  B.appendChild(ab);
+  if(G.attesa)B.appendChild(div('', '<div style="padding:10px 0;color:var(--muted)">Calcolo con Google…</div>'));
+  if(G.errore)B.appendChild(div('', '<div style="padding:8px 0;color:var(--red);font-weight:700">'+esc(G.errore)+'</div>'));
+  if(G.ris)mostraRisultato(B,div,bott);}
+function puntiScelti(){var G=GIRO,con=[],senza=[];G.rows.forEach(function(o){if(!G.scelti[o.id])return;var p=posizioneOrdine(o);
+  if(p)con.push({lat:p.lat,lng:p.lng,o:o});else senza.push(o);});return {con:con,senza:senza};}
+function partenzaGiro(){var G=GIRO;if(G.partenza==='qui'&&G.qui)return {p:G.qui,ora:new Date(),nome:'da dove sei'};
+  var d=new Date();d.setHours(8,0,0,0);return {p:MAGAZZINO,ora:d,nome:'dal magazzino'};}
+function calcolaUno(){var G=GIRO,s=puntiScelti(),pa=partenzaGiro();if(!s.con.length){toast('Nessuna consegna con la posizione','err');return;}
+  G.attesa=true;G.errore='';G.ris=null;disegnaGiro();
+  Promise.all([calcolaPercorso(pa.p,s.con,false),calcolaPercorso(pa.p,s.con,true)]).then(function(r){
+    G.ris={tipo:'uno',varianti:[{nome:'⚡ Più veloce',r:r[0]},{nome:'🛣️ Senza autostrada e pedaggi',r:r[1]}],scelta:0,senza:s.senza,pa:pa};})
+    .catch(function(e){G.errore=e.message;}).then(function(){G.attesa=false;disegnaGiro();});}
+function calcolaDue(){var G=GIRO,s=puntiScelti(),pa=partenzaGiro();if(s.con.length<2){toast('Servono almeno 2 consegne con la posizione','err');return;}
+  var due=dividiInDue(pa.p,s.con);G.attesa=true;G.errore='';G.ris=null;disegnaGiro();
+  Promise.all([calcolaPercorso(pa.p,due[0],false),calcolaPercorso(pa.p,due[1],false)]).then(function(r){
+    G.ris={tipo:'due',giri:[{nome:'Giro 1',r:r[0]},{nome:'Giro 2',r:r[1]}],senza:s.senza,pa:pa};})
+    .catch(function(e){G.errore=e.message;}).then(function(){G.attesa=false;disegnaGiro();});}
+function boxGiro(div,bott,titolo,r,pa,extra){var box=div('giro-box');
+  var min=r.min+r.ordine.length*SOSTA_MIN;
+  box.appendChild(div('', '<h4>'+esc(titolo)+'</h4><div style="font-size:13px">'+r.km+' km · '+oreMin(r.min)+' di strada + soste = <b>rientro verso le '+rientro(pa.ora,min)+'</b></div>'));
+  r.ordine.forEach(function(t,i){var st=div('giro-st','<b style="min-width:22px">'+(i+1)+'.</b>');var tx=div('', '<b>'+esc(t.o.locale)+'</b><small>'+esc(t.o.luogo||'')+'</small>');tx.style.flex='1';st.appendChild(tx);
+    var a=document.createElement('a');a.href=linkNaviga(t);a.target='_blank';a.rel='noopener';a.textContent='🧭 Naviga';a.style.cssText='font-size:12px;font-weight:700;color:#0ea5e9;text-decoration:none;white-space:nowrap';st.appendChild(a);box.appendChild(st);});
+  var bb=div('giro-btns');linkGiro(pa.p,r.ordine).forEach(function(u,i,arr){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';
+    a.textContent='🗺️ Apri in Google Maps'+(arr.length>1?' ('+(i+1)+'/'+arr.length+')':'');bb.appendChild(a);});
+  bb.appendChild(bott('📥 Excel di questo giro',false,function(){excelGiro(r.ordine.map(function(t){return t.o;}),'Consegne — '+GIRO.giorno+' — '+titolo);}));
+  if(extra)bb.appendChild(extra);box.appendChild(bb);return box;}
+function mostraRisultato(B,div,bott){var R=GIRO.ris,pa=R.pa;
+  if(R.tipo==='uno'){var sel=div('giro-btns');R.varianti.forEach(function(v,i){var min=v.r.min+v.r.ordine.length*SOSTA_MIN;
+      sel.appendChild(bott(v.nome+' · '+v.r.km+' km · rientro '+rientro(pa.ora,min),R.scelta===i,function(){R.scelta=i;disegnaGiro();}));});
+    B.appendChild(sel);var v=R.varianti[R.scelta];
+    B.appendChild(boxGiro(div,bott,v.nome.replace(/^\S+\s/,'')+' ('+pa.nome+')',v.r,pa,bott('✅ Metti le consegne in quest\'ordine',false,function(){
+      applicaOrdine(v.r.ordine.map(function(t){return t.o;}),GIRO.rows).then(function(){toast('Consegne riordinate ✓');closeOv();},function(e){toast('Non riordinato: '+e.message,'err');});},'background:#1d6f42;color:#fff;border-color:#1d6f42')));}
+  else{R.giri.forEach(function(g){B.appendChild(boxGiro(div,bott,g.nome+' ('+pa.nome+')',g.r,pa));});
+    B.appendChild(div('giro-btns')).appendChild(bott('✅ Metti le consegne in quest\'ordine (prima il giro 1, poi il giro 2)',false,function(){
+      applicaOrdine(R.giri[0].r.ordine.concat(R.giri[1].r.ordine).map(function(t){return t.o;}),GIRO.rows).then(function(){toast('Consegne riordinate ✓');closeOv();},function(e){toast('Non riordinato: '+e.message,'err');});},'background:#1d6f42;color:#fff;border-color:#1d6f42'));}
+  if(R.senza.length)B.appendChild(div('', '<div style="margin-top:10px;font-size:13px"><b>⚠ Fuori dal calcolo (senza posizione):</b> '+R.senza.map(function(o){return esc(o.locale);}).join(', ')+'. Mettile tu nel punto giusto, o «📍 Trova» e ricalcola.</div>'));}
+function trovaSuGoogle(o){if(!window.MAPS_KEY){toast('Serve internet per cercare su Google','err');return;}
+  fetch('https://places.googleapis.com/v1/places:searchText',{method:'POST',headers:{'Content-Type':'application/json','X-Goog-Api-Key':window.MAPS_KEY,
+      'X-Goog-FieldMask':'places.displayName,places.formattedAddress,places.location'},
+    body:JSON.stringify({textQuery:(o.locale||'')+' '+(o.luogo||''),languageCode:'it',regionCode:'IT',pageSize:1,locationBias:{circle:{center:{latitude:MAGAZZINO.lat,longitude:MAGAZZINO.lng},radius:50000}}})})
+    .then(function(r){return r.json();}).then(function(j){var p=(j.places||[])[0];if(!p||!p.location){toast('Google non trova «'+o.locale+'»: mettila tu nel punto giusto','err');return;}
+      confirm('È questo? '+((p.displayName&&p.displayName.text)||'')+' — '+(p.formattedAddress||''),function(){
+        GIRO.trovati[o.id]={lat:p.location.latitude,lng:p.location.longitude,come:'google'};GIRO.ris=null;disegnaGiro();});})
+    .catch(function(e){toast('Ricerca non riuscita: '+e.message,'err');});}
 
 // ── FILE EXCEL (22/11): xlsx vero, gia' formattato per la stampa A4 (intestazione ripetuta su ogni pagina, bordi,
 // testo a capo, tutto largo come il foglio) + in fondo il TOTALE PER ARTICOLO (carico del furgone). Sul PC (Chrome) si
@@ -1880,7 +2071,7 @@ document.getElementById('movbtn').addEventListener('click',function(){
     Promise.all(ids.map(function(id,i){
       var order=S.orders.find(function(o){return o.id===id;});
       if(!order)return Promise.resolve();
-      var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,omaggio:order.omaggio||'',note:order.note,day:selDay,weekKey:movWeek,pos:basePos+100*(i+1),userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
+      var payload={locale:order.locale,luogo:order.luogo,merce:order.merce,sigilli:order.sigilli,omaggio:order.omaggio||'',note:order.note,cliente:order.cliente||'',day:selDay,weekKey:movWeek,pos:basePos+100*(i+1),userId:order.userId,createdAt:order.createdAt,updatedAt:new Date().toISOString()};
       return new Promise(function(resolve){encOrder(payload,function(err,enc){if(err)resolve();else ocol.doc(id).update(enc).then(resolve).catch(resolve);});});
     }));
     toast(ids.length+' ordini spostati ✓'+(navigator.onLine?'':' · partono appena torna la rete'));closeOv();exitSelMode();
@@ -1899,6 +2090,12 @@ document.getElementById('omcl').addEventListener('click',closeOv);
 document.getElementById('smcl').addEventListener('click',closeOv);
 document.getElementById('movcl').addEventListener('click',closeOv);
 document.getElementById('excl').addEventListener('click',closeOv);
+document.getElementById('girocl').addEventListener('click',closeOv);
+document.getElementById('girobtn').addEventListener('click',function(){
+  var dayWk=S.dayWeek||S.week||currentWeekKey();
+  var rows=S.orders.filter(function(o){return o.day===S.day&&(o.weekKey||currentWeekKey())===dayWk;}).sort(function(a,b){var pa=a.pos!=null?a.pos:new Date(a.createdAt).getTime(),pb=b.pos!=null?b.pos:new Date(b.createdAt).getTime();return pa-pb;});
+  if(!rows.length){toast('Nessuna consegna in questo giorno','err');return;}
+  openGiro(rows,DAYS.find(function(d){return d.k===S.day;}).l);});
 </script>
 </body>
 </html>
