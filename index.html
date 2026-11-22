@@ -203,6 +203,20 @@ textarea{resize:none;}
 #exta{height:130px;font-size:11px;color:var(--muted);font-family:monospace;}
 #cpbtn{padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:var(--green);color:#fff;}
 #xlsbtn{margin-top:8px;padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:#1d6f42;color:#fff;}
+#prtbtn{margin-top:8px;padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:#0ea5e9;color:#fff;}
+#stampa{display:none}
+@media print{
+  html,body{height:auto!important;overflow:visible!important;background:#fff!important}
+  body>*:not(#stampa){display:none!important}
+  #stampa{display:block!important;font:10pt Calibri,Arial,sans-serif;color:#000}
+  #stampa h1{font-size:14pt;margin:0 0 6px}
+  #stampa table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px}
+  #stampa th,#stampa td{border:1px solid #555;padding:3px 4px;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;text-align:left}
+  #stampa th{background:#e7e6e6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #stampa thead{display:table-header-group}
+  #stampa tr{break-inside:avoid}
+  #stampa table.tot{width:55%}
+}
 .cli-sugg{display:flex;flex-direction:column;gap:4px;margin-top:6px}
 .cli-sugg button{text-align:left;padding:8px 10px;border-radius:10px;border:1.5px solid var(--border);background:#fff;font-size:13px;font-weight:700;color:var(--text)}
 .cli-sugg small{display:block;color:var(--muted);font-size:11px;font-weight:500}
@@ -435,6 +449,7 @@ textarea{resize:none;}
       <textarea class="finp" id="exta" readonly></textarea>
       <button id="cpbtn">📋 Copia negli appunti</button>
       <button id="xlsbtn">📥 Salva file Excel (pronto da stampare)</button>
+      <button id="prtbtn">🖨️ Stampa / PDF (tutto visibile, senza Excel)</button>
     </div>
   </div>
 </div>
@@ -1670,8 +1685,9 @@ function linkGiro(partenza,tappe){var punti=[partenza].concat(tappe,[MAGAZZINO])
   return out;}
 function righeOrdini(rows){return rows.map(function(o){return [USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale||'',o.luogo||'',
   nomiNuovi((o.merce||'')+(o.omaggio?(((o.merce&&o.merce.trim())?'+':'')+o.omaggio+' OMAGGIO'):'')),o.sigilli||'',o.note||''];});}
-function excelGiro(rows,titolo){salvaExcel({titolo:titolo,nome:'Giro',colonne:['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'],
-  larghezze:[14,30,26,32,14,36],righe:righeOrdini(rows),totali:totaliArticoli(rows),orizzontale:false});}
+function datiGiro(rows,titolo){return {titolo:titolo,nome:'Giro',colonne:['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'],
+  righe:righeOrdini(rows),totali:totaliArticoli(rows),orizzontale:false};}
+function excelGiro(rows,titolo){salvaExcel(datiGiro(rows,titolo));}
 function applicaOrdine(sequenza,tutti){var ids={},b=db.batch(),i=0;
   sequenza.concat(tutti).forEach(function(o){if(ids[o.id])return;ids[o.id]=1;i++;b.update(ocol.doc(o.id),{pos:i*100});});
   return b.commit();}
@@ -1725,6 +1741,7 @@ function boxGiro(div,bott,titolo,r,pa,extra){var box=div('giro-box');
   var bb=div('giro-btns');linkGiro(pa.p,r.ordine).forEach(function(u,i,arr){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';
     a.textContent='🗺️ Apri in Google Maps'+(arr.length>1?' ('+(i+1)+'/'+arr.length+')':'');bb.appendChild(a);});
   bb.appendChild(bott('📥 Excel di questo giro',false,function(){excelGiro(r.ordine.map(function(t){return t.o;}),'Consegne — '+GIRO.giorno+' — '+titolo);}));
+  bb.appendChild(bott('🖨️ Stampa / PDF',false,function(){stampaTabella(datiGiro(r.ordine.map(function(t){return t.o;}),'Consegne — '+GIRO.giorno+' — '+titolo));}));
   if(extra)bb.appendChild(extra);box.appendChild(bb);return box;}
 function mostraRisultato(B,div,bott){var R=GIRO.ris,pa=R.pa;
   if(R.tipo==='uno'){var sel=div('giro-btns');R.varianti.forEach(function(v,i){var min=v.r.min+v.r.ordine.length*SOSTA_MIN;
@@ -1772,8 +1789,40 @@ function zipStore(files){var enc=new TextEncoder(),parti=[],centr=[],off=0;
   tutto.forEach(function(x){out.set(x,p);p+=x.length;});return out;}
 function xmlEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');}
 function colLett(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;}
+// larghezza delle colonne in base al contenuto, dentro la larghezza di un foglio A4 (circa 100 caratteri in verticale,
+// 150 in orizzontale): le colonne corte restano corte, quelle lunghe si dividono lo spazio che resta e il testo va a capo
+function adattaColonne(o){var Wmax=o.orizzontale?150:100;
+  var serve=o.colonne.map(function(h,i){var m=String(h).length+2;
+    o.righe.forEach(function(c){String(c[i]==null?'':c[i]).split('\n').forEach(function(x){m=Math.max(m,Math.min(x.length,80)+2);});});return Math.max(m,5);});
+  var tot=serve.reduce(function(a,b){return a+b;},0);if(tot<=Wmax)return serve;
+  // spazio diviso in proporzione al testo (con la radice: le colonne lunghe prendono di piu' ma non tutto); chi ha gia' quanto gli serve si ferma
+  var w=serve.map(function(){return 0;}),fisse={},resto=Wmax;
+  for(var giro=0;giro<serve.length;giro++){var peso=0;serve.forEach(function(x,i){if(!fisse[i])peso+=Math.pow(x,0.6);});
+    var cambiato=false;serve.forEach(function(x,i){if(fisse[i])return;var q=resto*Math.pow(x,0.6)/peso;if(q>=x){w[i]=x;fisse[i]=1;cambiato=true;}});
+    resto=Wmax-serve.reduce(function(a,x,i){return a+(fisse[i]?w[i]:0);},0);if(!cambiato)break;}
+  var peso2=0;serve.forEach(function(x,i){if(!fisse[i])peso2+=Math.pow(x,0.6);});
+  serve.forEach(function(x,i){if(!fisse[i])w[i]=resto*Math.pow(x,0.6)/peso2;});
+  return w.map(function(x,i){return Math.max(Math.min(serve[i],String(o.colonne[i]).length+2,8),Math.floor(x));});}
+function righeTesto(v,w){return String(v==null?'':v).split('\n').reduce(function(s,x){return s+Math.max(1,Math.ceil(x.length/Math.max(1,w-1)));},0);}
+function altezzaRiga(celle,W){var l=1;celle.forEach(function(v,i){if(W[i])l=Math.max(l,righeTesto(v,W[i]));});return l*15+3;}
+// 🖨️ stampa senza Excel: la pagina A4 la prepara l'app (verticale per le consegne, orizzontale per le spedizioni), le righe
+// si allungano quanto serve, l'intestazione si ripete su ogni pagina; dal telefono si può salvare come PDF
+function stampaTabella(o){var W=adattaColonne(o),tot=W.reduce(function(a,b){return a+b;},0);
+  var d=document.getElementById('stampa');if(!d){d=document.createElement('div');d.id='stampa';document.body.appendChild(d);}
+  var st=document.getElementById('stampa-pagina');if(!st){st=document.createElement('style');st.id='stampa-pagina';document.head.appendChild(st);}
+  st.textContent='@page{size:A4 '+(o.orizzontale?'landscape':'portrait')+';margin:10mm}';
+  var h='<h1>'+esc(o.titolo)+' · '+new Date().toLocaleDateString('it-IT')+'</h1><table><colgroup>'+
+    W.map(function(w){return '<col style="width:'+(100*w/tot).toFixed(1)+'%">';}).join('')+'</colgroup><thead><tr>'+
+    o.colonne.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>'+
+    o.righe.map(function(r){return '<tr>'+o.colonne.map(function(_,i){return '<td>'+esc(r[i]==null?'':r[i]).replace(/\n/g,'<br>')+'</td>';}).join('')+'</tr>';}).join('')+
+    '</tbody></table>';
+  if(o.totali&&o.totali.righe.length){
+    h+='<table class="tot"><thead><tr><th>Totale per articolo</th><th>Quantità</th><th>di cui omaggio</th></tr></thead><tbody>'+
+      o.totali.righe.map(function(x){return '<tr><td><b>'+esc(x[0])+'</b></td><td>'+x[1]+'</td><td>'+(x[2]||'')+'</td></tr>';}).join('')+'</tbody></table>';
+    if(o.totali.omaggiNonContati.length)h+='<p>Omaggi scritti a parole (non contati): '+esc(o.totali.omaggiNonContati.join(' · '))+'</p>';}
+  d.innerHTML=h;setTimeout(function(){window.print();},150);}
 function creaXlsx(o){
-  var righeXml=[],r=0,maxC=o.colonne.length;
+  var righeXml=[],r=0,W=adattaColonne(o);
   function riga(celle,stile,alt){r++;var x='<row r="'+r+'"'+(alt?' ht="'+alt+'" customHeight="1"':'')+'>';
     celle.forEach(function(v,i){var ref=colLett(i)+r,s=Array.isArray(stile)?stile[i]:stile;
       if(typeof v==='number')x+='<c r="'+ref+'" s="'+s+'"><v>'+v+'</v></c>';
@@ -1781,12 +1830,12 @@ function creaXlsx(o){
     righeXml.push(x+'</row>');}
   var oggi=new Date().toLocaleDateString('it-IT');
   riga([o.titolo+' · '+oggi],3,22);r++;
-  var rigaTitoli=r+1;riga(o.colonne,1);
-  o.righe.forEach(function(c){riga(o.colonne.map(function(_,i){return c[i]==null?'':String(c[i]);}),2);});
+  var rigaTitoli=r+1;riga(o.colonne,1,altezzaRiga(o.colonne,W));
+  o.righe.forEach(function(c){var celle=o.colonne.map(function(_,i){return c[i]==null?'':String(c[i]);});riga(celle,2,altezzaRiga(celle,W));});
   if(o.totali&&o.totali.righe.length){r++;riga(['TOTALE PER ARTICOLO','Quantità','di cui omaggio'],[4,4,4]);
     o.totali.righe.forEach(function(x){riga(x,[5,6,6]);});
     if(o.totali.omaggiNonContati.length)riga(['Omaggi scritti a parole (non contati): '+o.totali.omaggiNonContati.join(' · ')],0);}
-  var cols='<cols>'+o.larghezze.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>';}).join('')+'</cols>';
+  var cols='<cols>'+W.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>';}).join('')+'</cols>';
   var foglio='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     +'<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane ySplit="'+rigaTitoli+'" topLeftCell="A'+(rigaTitoli+1)+'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
     +cols+'<sheetData>'+righeXml.join('')+'</sheetData>'
@@ -1803,8 +1852,8 @@ function creaXlsx(o){
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
     +'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
-    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
-    +'<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+    +'<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
     +'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   return zipStore([
@@ -1840,11 +1889,10 @@ function openExport(rows,title){
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
   cb.onclick=function(){navigator.clipboard.writeText(txt).catch(function(){document.getElementById('exta').select();document.execCommand('copy');});cb.textContent='✓ Copiato!';setTimeout(function(){cb.textContent='📋 Copia negli appunti';},2500);};
-  document.getElementById('xlsbtn').onclick=function(){
-    var righe=rows.map(function(o){return [USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale||'',o.luogo||'',
-      nomiNuovi((o.merce||'')+(o.omaggio?(((o.merce&&o.merce.trim())?'+':'')+o.omaggio+' OMAGGIO'):'')),o.sigilli||'',o.note||''];});
-    salvaExcel({titolo:title.replace(/^Esporta\s*—?\s*/,'Consegne — '),nome:'Consegne',colonne:hdr,larghezze:[14,30,26,32,14,36],
-      righe:righe,totali:totaliArticoli(rows),orizzontale:false});};
+  function datiX(){return {titolo:title.replace(/^Esporta\s*—?\s*/,'Consegne — '),nome:'Consegne',colonne:hdr,
+    righe:righeOrdini(rows),totali:totaliArticoli(rows),orizzontale:false};}
+  document.getElementById('xlsbtn').onclick=function(){salvaExcel(datiX());};
+  document.getElementById('prtbtn').onclick=function(){stampaTabella(datiX());};
   openOv('exmod');
 }
 
@@ -1866,10 +1914,10 @@ function exportShipments(rows){
     ];
   })).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('extit').textContent='Esporta Spedizioni';
-  document.getElementById('xlsbtn').onclick=function(){
-    var righe=txt.split('\n').slice(1).map(function(r){var c=r.split('\t');c[4]=nomiNuovi(c[4]);return c;});
-    salvaExcel({titolo:'Spedizioni',nome:'Spedizioni',colonne:hdr,larghezze:[12,26,26,7,30,12,12,8,8,7,7,8,7,7,30],
-      righe:righe,totali:totaliArticoli(rows),orizzontale:true});};
+  function datiS(){return {titolo:'Spedizioni',nome:'Spedizioni',colonne:hdr,
+    righe:txt.split('\n').slice(1).map(function(r){var c=r.split('\t');c[4]=nomiNuovi(c[4]);return c;}),totali:totaliArticoli(rows),orizzontale:true};}
+  document.getElementById('xlsbtn').onclick=function(){salvaExcel(datiS());};
+  document.getElementById('prtbtn').onclick=function(){stampaTabella(datiS());};
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
   cb.onclick=function(){navigator.clipboard.writeText(txt).catch(function(){document.getElementById('exta').select();document.execCommand('copy');});cb.textContent='✓ Copiato!';setTimeout(function(){cb.textContent='📋 Copia negli appunti';},2500);};
