@@ -1150,7 +1150,7 @@ function renderDay(){
     var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+esc(o.id)+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
     var actions=!selMode?'<button class="ocb bedit" data-id="'+esc(o.id)+'">✏️</button><button class="ocb bdel" data-id="'+esc(o.id)+'" style="color:var(--red)">🗑</button>':'';
     var repLine=selMode?'<div style="font-size:10px;font-weight:700;color:'+u.color+';margin-bottom:4px;">'+u.emoji+' '+u.label+'</div>':'';
-    c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(o.merce)+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(o.omaggio)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
+    c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(nomiNuovi(o.merce))+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(nomiNuovi(o.omaggio))+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
     list.appendChild(c);
   });
   list.querySelectorAll('.sel-circle').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();var id=b.dataset.id;if(selIds[id])delete selIds[id];else selIds[id]=true;renderDay();});});
@@ -1326,9 +1326,9 @@ function renderShipments(){
       '<div class="oacts"><button class="ocb sedit" data-id="'+esc(s.id)+'">✏️</button><button class="ocb sdel" data-id="'+esc(s.id)+'" style="color:var(--red)">🗑</button></div></div>'+
       '<div class="sc-name">'+esc(s.locale)+'</div>'+(s.luogo?'<div class="sc-field">📍 '+esc(s.luogo)+'</div>':'')+
       '<div class="sc-meta">'+chanBadge+'</div>'+
-      (s.merce?'<div class="sc-field">📦 '+esc(s.merce)+'</div>':'')+
+      (s.merce?'<div class="sc-field">📦 '+esc(nomiNuovi(s.merce))+'</div>':'')+
       (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
-      (s.omaggio?'<div class="sc-field">🎁 '+esc(s.omaggio)+'</div>':'')+
+      (s.omaggio?'<div class="sc-field">🎁 '+esc(nomiNuovi(s.omaggio))+'</div>':'')+
       (s.note?'<div class="sc-field" style="color:var(--muted);">📝 '+esc(s.note)+'</div>':'')+
       (pagChips?'<div style="margin-top:8px;"><span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;">💳 PAGAMENTO</span><div class="chips" style="margin-top:5px;">'+pagChips+'</div></div>':'')+
       '<div style="margin-top:6px;"><span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.5px;">📋 STATO</span><div class="chips" style="margin-top:5px;">'+statoChips+'</div></div>';
@@ -1657,9 +1657,22 @@ function stimaMin(dep,pts){if(!pts.length)return 0;var resto=pts.slice(),cur=dep
   return best*1.3/50*60+pts.length*SOSTA_MIN;}
 function dividiInDue(dep,pts){var n=pts.length;if(n<2)return [pts,[]];
   var ang=pts.map(function(p){return {p:p,a:Math.atan2(p.lat-dep.lat,(p.lng-dep.lng)*Math.cos(dep.lat*Math.PI/180))};}).sort(function(x,y){return x.a-y.a;}).map(function(x){return x.p;});
-  var best=null;for(var s=0;s<n;s++)for(var k=1;k<n;k++){var rot=ang.slice(s).concat(ang.slice(0,s)),A=rot.slice(0,k),B=rot.slice(k);
-    var v=Math.max(stimaMin(dep,A),stimaMin(dep,B));if(!best||v<best.v)best={v:v,A:A,B:B};}
-  return [best.A,best.B];}
+  // review 22/11: con 40-50 consegne il calcolo fine su ogni taglio bloccava il telefono per decine di secondi.
+  // Ora: distanze calcolate una volta sola, tutti i tagli valutati con una stima veloce (vicino piu' vicino), poi i
+  // tagli migliori ricontrollati con la stima fine (stimaMin). P[0] = partenza, P[1..n] = consegne in ordine di angolo.
+  var P=[dep].concat(ang),D=P.map(function(a){return P.map(function(b){return kmTra(a,b);});});
+  function kmVeloce(ix){var resto=ix.slice(),cur=0,km=0;
+    while(resto.length){var bi=0,bd=1e9;for(var i=0;i<resto.length;i++){var d=D[cur][resto[i]];if(d<bd){bd=d;bi=i;}}km+=bd;cur=resto.splice(bi,1)[0];}
+    return km+D[cur][0];}
+  function minuti(km,m){return km*1.3/50*60+m*SOSTA_MIN;}
+  var cand=[];for(var s=0;s<n;s++)for(var k=1;k<n;k++){var A=[],B=[];for(var i=0;i<n;i++)(i<k?A:B).push((s+i)%n+1);
+    cand.push({v:Math.max(minuti(kmVeloce(A),A.length),minuti(kmVeloce(B),B.length)),A:A,B:B});}
+  cand.sort(function(x,y){return x.v-y.v;});
+  var visti={},prova=0,best=null,pt=function(ix){return ix.map(function(j){return P[j];});};
+  for(var c=0;c<cand.length&&prova<24;c++){var x=cand[c],ka=x.A.slice().sort(function(a,b){return a-b;}).join(','),kb=x.B.slice().sort(function(a,b){return a-b;}).join(',');
+    var key=ka<kb?ka+'|'+kb:kb+'|'+ka;if(visti[key])continue;visti[key]=1;prova++;
+    var v=Math.max(stimaMin(dep,pt(x.A)),stimaMin(dep,pt(x.B)));if(!best||v<best.v)best={v:v,A:x.A,B:x.B};}
+  return [pt(best.A),pt(best.B)];}
 function calcolaPercorso(partenza,tappe,senzaAutostrada){
   if(!window.MAPS_KEY)return Promise.reject(new Error('Chiave Google non trovata (si carica dall\'app della mappa): serve internet.'));
   if(tappe.length>25)return Promise.reject(new Error('Più di 25 tappe: usa «Dividi in due».'));
