@@ -201,6 +201,7 @@ textarea{resize:none;}
 .enote strong{color:var(--text);}
 #exta{height:130px;font-size:11px;color:var(--muted);font-family:monospace;}
 #cpbtn{padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:var(--green);color:#fff;}
+#xlsbtn{margin-top:8px;padding:14px;border-radius:12px;font-size:15px;font-weight:800;background:#1d6f42;color:#fff;}
 
 #selbar{display:none;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.04);}
 
@@ -412,6 +413,7 @@ textarea{resize:none;}
       <div class="enote"><p>1. Premi <strong>Copia</strong><br>2. Apri <strong>Excel</strong> o <strong>Google Sheets</strong><br>3. Seleziona cella → <strong>Incolla</strong></p></div>
       <textarea class="finp" id="exta" readonly></textarea>
       <button id="cpbtn">📋 Copia negli appunti</button>
+      <button id="xlsbtn">📥 Salva file Excel (pronto da stampare)</button>
     </div>
   </div>
 </div>
@@ -525,7 +527,8 @@ var SHIP_FIELDS = [
 ];
 var PAG_EXTRA = [{k:'proforma', l:'Proforma'}, {k:'fattura', l:'Fattura'}, {k:'pagato', l:'Pagato'}];
 var TRAMEZZINI = ['S','M','L','MAGNUM','XXL','RETT.'];
-var GRANTOSTATI = ['PANINI','TOAST','TOSTONE','MAXI TST.','GALAXY','CLUB'];
+var GRANTOSTATI = ['PANINI','TOAST','TOSTONI','MAXI TST.','GALAXY','CLUB'];  // TOSTONE -> TOSTONI (Jacopo 22/11)
+var ALIAS_ART = {'TOSTONE':'TOSTONI'};  // nomi vecchi negli ordini gia' salvati
 var VELINE = ['VEL. 18x25','VEL. 25x37'];
 
 var SIGILLI_OPTS = ['Bianchi', 'Pers. om.', 'Pers. €', 'Color. om.', 'Color. €', 'Smile om.', 'Smile €'];
@@ -757,14 +760,14 @@ function parseArticoli(str) {
   str.split(',').forEach(function(part) {
     part = part.trim();
     var m = part.match(/^(\d+)\s+(.+)$/);
-    if (m) result[m[2].trim()] = parseInt(m[1]);
+    if (m) { var k = m[2].trim(); k = ALIAS_ART[k] || k; result[k] = (result[k] || 0) + parseInt(m[1]); }
   });
   return result;
 }
 
 function serializeArticoli(qtys) {
   // Convert {S:2, L:1, Toast:3} to "2 S, 1 L, 3 Toast"
-  var all = TRAMEZZINI.concat(GRANTOSTATI);
+  var all = TRAMEZZINI.concat(GRANTOSTATI, VELINE);  // anche le veline (prima si perdevano al salvataggio)
   return all.filter(function(k){ return qtys[k] > 0; })
     .map(function(k){ return qtys[k] + ' ' + k; })
     .join(', ');
@@ -1551,6 +1554,87 @@ function openShipmentModal(editId){
   openOv('smod');
 }
 
+// ── FILE EXCEL (22/11): xlsx vero, gia' formattato per la stampa A4 (intestazione ripetuta su ogni pagina, bordi,
+// testo a capo, tutto largo come il foglio) + in fondo il TOTALE PER ARTICOLO (carico del furgone). Sul PC (Chrome) si
+// sceglie ogni volta cartella e nome ("Salva con nome"); sul telefono va in Download. Nessuna libreria esterna.
+function nomiNuovi(s){return String(s||'').replace(/\bTOSTONE\b/g,'TOSTONI');}
+function totaliArticoli(rows){var tot={},om={};
+  rows.forEach(function(o){var a=parseArticoli(o.merce||''),b=parseArticoli(o.omaggio||'');
+    Object.keys(a).forEach(function(k){tot[k]=(tot[k]||0)+a[k];});
+    Object.keys(b).forEach(function(k){tot[k]=(tot[k]||0)+b[k];om[k]=(om[k]||0)+b[k];});});
+  var ord=TRAMEZZINI.concat(GRANTOSTATI,VELINE),chiavi=Object.keys(tot).sort(function(x,y){var i=ord.indexOf(x),j=ord.indexOf(y);return (i<0?99:i)-(j<0?99:j)||x.localeCompare(y);});
+  var altri=rows.filter(function(o){return o.omaggio&&!Object.keys(parseArticoli(o.omaggio)).length;}).map(function(o){return o.omaggio;});
+  return {righe:chiavi.map(function(k){return [k,tot[k],om[k]||''];}),omaggiNonContati:altri};}
+var CRC_T=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(b){var c=0xFFFFFFFF;for(var i=0;i<b.length;i++)c=CRC_T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function zipStore(files){var enc=new TextEncoder(),parti=[],centr=[],off=0;
+  function u16(v){return [v&255,(v>>>8)&255];}function u32(v){return [v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];}
+  files.forEach(function(f){var nome=enc.encode(f.nome),dati=enc.encode(f.dati),crc=crc32(dati);
+    var loc=[].concat([0x50,0x4b,3,4],u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),u32(crc),u32(dati.length),u32(dati.length),u16(nome.length),u16(0));
+    parti.push(new Uint8Array(loc),nome,dati);
+    centr.push(new Uint8Array([].concat([0x50,0x4b,1,2],u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0x21),u32(crc),u32(dati.length),u32(dati.length),
+      u16(nome.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off))),nome);
+    off+=loc.length+nome.length+dati.length;});
+  var lc=centr.reduce(function(s,x){return s+x.length;},0);
+  var fine=new Uint8Array([].concat([0x50,0x4b,5,6],u16(0),u16(0),u16(files.length),u16(files.length),u32(lc),u32(off),u16(0)));
+  var tutto=parti.concat(centr,[fine]),n=tutto.reduce(function(s,x){return s+x.length;},0),out=new Uint8Array(n),p=0;
+  tutto.forEach(function(x){out.set(x,p);p+=x.length;});return out;}
+function xmlEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');}
+function colLett(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;}
+function creaXlsx(o){
+  var righeXml=[],r=0,maxC=o.colonne.length;
+  function riga(celle,stile,alt){r++;var x='<row r="'+r+'"'+(alt?' ht="'+alt+'" customHeight="1"':'')+'>';
+    celle.forEach(function(v,i){var ref=colLett(i)+r,s=Array.isArray(stile)?stile[i]:stile;
+      if(typeof v==='number')x+='<c r="'+ref+'" s="'+s+'"><v>'+v+'</v></c>';
+      else x+='<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+xmlEsc(v)+'</t></is></c>';});
+    righeXml.push(x+'</row>');}
+  var oggi=new Date().toLocaleDateString('it-IT');
+  riga([o.titolo+' · '+oggi],3,22);r++;
+  var rigaTitoli=r+1;riga(o.colonne,1);
+  o.righe.forEach(function(c){riga(o.colonne.map(function(_,i){return c[i]==null?'':String(c[i]);}),2);});
+  if(o.totali&&o.totali.righe.length){r++;riga(['TOTALE PER ARTICOLO','Quantità','di cui omaggio'],[4,4,4]);
+    o.totali.righe.forEach(function(x){riga(x,[5,6,6]);});
+    if(o.totali.omaggiNonContati.length)riga(['Omaggi scritti a parole (non contati): '+o.totali.omaggiNonContati.join(' · ')],0);}
+  var cols='<cols>'+o.larghezze.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>';}).join('')+'</cols>';
+  var foglio='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    +'<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane ySplit="'+rigaTitoli+'" topLeftCell="A'+(rigaTitoli+1)+'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+    +cols+'<sheetData>'+righeXml.join('')+'</sheetData>'
+    +'<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>'
+    +'<pageSetup paperSize="9" orientation="'+(o.orizzontale?'landscape':'portrait')+'" fitToWidth="1" fitToHeight="0"/>'
+    +'<headerFooter><oddFooter>&amp;CPagina &amp;P di &amp;N</oddFooter></headerFooter></worksheet>';
+  var nomeFoglio=o.nome.slice(0,31);
+  var stili='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    +'<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font></fonts>'
+    +'<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/><bgColor indexed="64"/></patternFill></fill></fills>'
+    +'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders>'
+    +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7">'
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+    +'<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>'
+    +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
+    +'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  return zipStore([
+    {nome:'[Content_Types].xml',dati:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
+    {nome:'_rels/.rels',dati:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {nome:'xl/workbook.xml',dati:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="'+xmlEsc(nomeFoglio)+'" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm.Print_Titles" localSheetId="0">\''+xmlEsc(nomeFoglio)+'\'!$'+rigaTitoli+':$'+rigaTitoli+'</definedName></definedNames></workbook>'},
+    {nome:'xl/_rels/workbook.xml.rels',dati:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
+    {nome:'xl/styles.xml',dati:stili},
+    {nome:'xl/worksheets/sheet1.xml',dati:foglio}]);}
+function salvaExcel(o){
+  var dati=creaXlsx(o),d=new Date(),gg=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  var nome=(o.titolo.replace(/[—·]/g,' ').replace(/[^\wÀ-ÿ\- ]+/g,'').trim().replace(/\s+/g,'_')||o.nome)+'_'+gg+'.xlsx';
+  var tipo='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',blob=new Blob([dati],{type:tipo});
+  if(window.showSaveFilePicker){  // PC: "Salva con nome", scegli tu cartella e nome
+    window.showSaveFilePicker({suggestedName:nome,types:[{description:'File Excel',accept:{[tipo]:['.xlsx']}}]})
+      .then(function(h){return h.createWritable().then(function(w){return w.write(blob).then(function(){return w.close();});});})
+      .then(function(){toast('File Excel salvato ✓');},function(e){if(e&&e.name!=='AbortError')toast('File non salvato: '+e.message,'err');});
+    return;}
+  var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nome;document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},2000);toast('File Excel scaricato (cartella Download) ✓');}
+
 // ── EXPORT ORDERS ─────────────────────────────────────────────────────────
 function openExport(rows,title){
   document.getElementById('extit').textContent=title;
@@ -1565,6 +1649,11 @@ function openExport(rows,title){
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
   cb.onclick=function(){navigator.clipboard.writeText(txt).catch(function(){document.getElementById('exta').select();document.execCommand('copy');});cb.textContent='✓ Copiato!';setTimeout(function(){cb.textContent='📋 Copia negli appunti';},2500);};
+  document.getElementById('xlsbtn').onclick=function(){
+    var righe=rows.map(function(o){return [USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale||'',o.luogo||'',
+      nomiNuovi((o.merce||'')+(o.omaggio?(((o.merce&&o.merce.trim())?'+':'')+o.omaggio+' OMAGGIO'):'')),o.sigilli||'',o.note||''];});
+    salvaExcel({titolo:title.replace(/^Esporta\s*—?\s*/,'Consegne — '),nome:'Consegne',colonne:hdr,larghezze:[14,30,26,32,14,36],
+      righe:righe,totali:totaliArticoli(rows),orizzontale:false});};
   openOv('exmod');
 }
 
@@ -1586,6 +1675,10 @@ function exportShipments(rows){
     ];
   })).map(function(r){return r.join('\t');}).join('\n');
   document.getElementById('extit').textContent='Esporta Spedizioni';
+  document.getElementById('xlsbtn').onclick=function(){
+    var righe=txt.split('\n').slice(1).map(function(r){var c=r.split('\t');c[4]=nomiNuovi(c[4]);return c;});
+    salvaExcel({titolo:'Spedizioni',nome:'Spedizioni',colonne:hdr,larghezze:[12,26,26,7,30,12,12,8,8,7,7,8,7,7,30],
+      righe:righe,totali:totaliArticoli(rows),orizzontale:true});};
   document.getElementById('exta').value=txt;
   var cb=document.getElementById('cpbtn');cb.textContent='📋 Copia negli appunti';
   cb.onclick=function(){navigator.clipboard.writeText(txt).catch(function(){document.getElementById('exta').select();document.execCommand('copy');});cb.textContent='✓ Copiato!';setTimeout(function(){cb.textContent='📋 Copia negli appunti';},2500);};
