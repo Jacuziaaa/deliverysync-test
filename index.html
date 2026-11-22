@@ -211,7 +211,7 @@ textarea{resize:none;}
   #stampa{display:block!important;font:10pt Calibri,Arial,sans-serif;color:#000}
   #stampa h1{font-size:14pt;margin:0 0 6px}
   #stampa table{width:100%;border-collapse:collapse;table-layout:fixed;margin-bottom:10px}
-  #stampa th,#stampa td{border:1px solid #555;padding:3px 4px;vertical-align:top;overflow-wrap:anywhere;word-break:break-word;text-align:left}
+  #stampa th,#stampa td{border:1px solid #555;padding:3px 4px;vertical-align:top;overflow-wrap:break-word;text-align:left}
   #stampa th{background:#e7e6e6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #stampa thead{display:table-header-group}
   #stampa tr{break-inside:avoid}
@@ -1794,15 +1794,18 @@ function colLett(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode
 function adattaColonne(o){var Wmax=o.orizzontale?150:100;
   var serve=o.colonne.map(function(h,i){var m=String(h).length+2;
     o.righe.forEach(function(c){String(c[i]==null?'':c[i]).split('\n').forEach(function(x){m=Math.max(m,Math.min(x.length,80)+2);});});return Math.max(m,5);});
+  var parola=o.colonne.map(function(h,i){var m=0;[h].concat(o.righe.map(function(c){return c[i];})).forEach(function(v){
+    String(v==null?'':v).split(/\s+/).forEach(function(x){m=Math.max(m,Math.min(x.length,16));});});return m+2;});
+  serve=serve.map(function(x,i){return Math.max(x,parola[i]);});
   var tot=serve.reduce(function(a,b){return a+b;},0);if(tot<=Wmax)return serve;
   // spazio diviso in proporzione al testo (con la radice: le colonne lunghe prendono di piu' ma non tutto); chi ha gia' quanto gli serve si ferma
   var w=serve.map(function(){return 0;}),fisse={},resto=Wmax;
   for(var giro=0;giro<serve.length;giro++){var peso=0;serve.forEach(function(x,i){if(!fisse[i])peso+=Math.pow(x,0.6);});
-    var cambiato=false;serve.forEach(function(x,i){if(fisse[i])return;var q=resto*Math.pow(x,0.6)/peso;if(q>=x){w[i]=x;fisse[i]=1;cambiato=true;}});
+    var cambiato=false;serve.forEach(function(x,i){if(fisse[i])return;var q=resto*Math.pow(x,0.6)/peso;if(q>=x||q<=parola[i]){w[i]=q>=x?x:parola[i];fisse[i]=1;cambiato=true;}});
     resto=Wmax-serve.reduce(function(a,x,i){return a+(fisse[i]?w[i]:0);},0);if(!cambiato)break;}
   var peso2=0;serve.forEach(function(x,i){if(!fisse[i])peso2+=Math.pow(x,0.6);});
   serve.forEach(function(x,i){if(!fisse[i])w[i]=resto*Math.pow(x,0.6)/peso2;});
-  return w.map(function(x,i){return Math.max(Math.min(serve[i],String(o.colonne[i]).length+2,8),Math.floor(x));});}
+  return w.map(function(x,i){return Math.max(parola[i],Math.floor(x));});}
 function righeTesto(v,w){return String(v==null?'':v).split('\n').reduce(function(s,x){return s+Math.max(1,Math.ceil(x.length/Math.max(1,w-1)));},0);}
 function altezzaRiga(celle,W){var l=1;celle.forEach(function(v,i){if(W[i])l=Math.max(l,righeTesto(v,W[i]));});return l*15+3;}
 // 🖨️ stampa senza Excel: la pagina A4 la prepara l'app (verticale per le consegne, orizzontale per le spedizioni), le righe
