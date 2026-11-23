@@ -223,6 +223,7 @@ textarea{resize:none;}
 .cli-info{font-size:12px;margin-top:6px;color:var(--muted);line-height:1.45}
 .cli-info a{color:#0ea5e9;font-weight:700;text-decoration:none;margin-left:8px;white-space:nowrap}
 .art-row.abit{background:#fff4d6;box-shadow:inset 3px 0 0 #f59e0b}
+.chip.abit{background:#fff4d6;border-color:#f59e0b;color:#92400e}
 .giro-st{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
 .giro-st small{display:block;color:var(--muted);font-size:11px}
 .giro-btns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
@@ -901,7 +902,7 @@ function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, o
   opts.forEach(function(opt) {
     var btn = document.createElement('button');
     var isOn = selArr.indexOf(opt) !== -1;
-    btn.className = 'chip' + (isOn ? ' on' : '');
+    btn.className = 'chip' + (isOn ? ' on' : (containerId === 'osig-pick' && ABIT_SIG.indexOf(opt) >= 0 ? ' abit' : ''));  // sigilli di solito
     if (isOn) { btn.style.background='var(--chip-green-bg)'; btn.style.color='var(--chip-green)'; btn.style.borderColor='#16a87a55'; }
     else { btn.style.background=''; btn.style.color=''; btn.style.borderColor=''; }
     btn.textContent = opt + (isOn ? ' ✓' : '');
@@ -1448,7 +1449,7 @@ function openOrderModal(editId,defDay){
   document.getElementById('fomaggio').value=order?order.omaggio||'':'';
   document.getElementById('fnot').value=order?order.note:'';
   document.getElementById('repgrp').style.display=isEdit?'flex':'none';
-  var selMer = order?order.merce:'';ABIT_ART=[];
+  var selMer = order?order.merce:'';ABIT_ART=[];ABIT_SIG=[];
   buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});
 
   var selSig = order?order.sigilli:'';
@@ -1459,7 +1460,9 @@ function openOrderModal(editId,defDay){
   var selCli=order&&order.cliente?order.cliente:null;
   var fl=document.getElementById('floc'),sg=document.getElementById('fcli-sugg'),inf=document.getElementById('fcli-info');
   sg.innerHTML='';
-  function evidenzia(c){var nuovo=c?abitudini(c):[];if(nuovo.join('|')===ABIT_ART.join('|'))return;ABIT_ART=nuovo;buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});}
+  function evidenzia(c){var nuovo=c?abitudini(c):[],sig=c?abitudiniSigilli(c):[];
+    if(sig.join('|')!==ABIT_SIG.join('|')){ABIT_SIG=sig;buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});}
+    if(nuovo.join('|')===ABIT_ART.join('|'))return;ABIT_ART=nuovo;buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});}
   function info(){var c=selCli&&NCLI.perId[selCli],t=fl.value.trim();
     if(c){inf.innerHTML='✓ Cliente della mappa · '+esc(testoAbitudini(c))+'<a href="'+URL_MAPPA+'#cliente='+encodeURIComponent(c._doc)+'" target="_blank" rel="noopener">✏️ Correggi</a>';return;}
     if(NCLI.stato==='nokey'){inf.textContent='Elenco clienti della mappa non disponibile su questo telefono: apri una volta l\'app Framezzino Network.';return;}
@@ -1629,7 +1632,7 @@ function openShipmentModal(editId){
 // ── CLIENTI DELLA MAPPA (22/11): l'elenco dei clienti dell'app Framezzino Network (stesso sito, stesso accesso Firebase,
 // chiave della mappa gia' salvata nel telefono da quell'app). Solo lettura: serve a scegliere il cliente nel nuovo ordine,
 // a vedere le sue abitudini e a fare il giro. Scrivere il locale a mano resta sempre possibile.
-var NCLI={lista:[],perId:{},stato:'',unsub:null},URL_MAPPA='../framezzino-network/',ABIT_ART=[];
+var NCLI={lista:[],perId:{},stato:'',unsub:null},URL_MAPPA='../framezzino-network/',ABIT_ART=[],ABIT_SIG=[];
 function nNorm(s){return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();}
 function nKey(){return new Promise(function(res){try{var r=indexedDB.open('fn-keys',1);r.onupgradeneeded=function(){r.result.createObjectStore('k');};r.onerror=function(){res(null);};
   r.onsuccess=function(){try{var q=r.result.transaction('k','readonly').objectStore('k').get('key');q.onsuccess=function(){res(q.result||null);};q.onerror=function(){res(null);};}catch(e){res(null);}};}catch(e){res(null);}});}
@@ -1644,6 +1647,10 @@ function avviaClientiMappa(){nKey().then(function(k){if(!k){NCLI.stato='nokey';r
 var PROD_ART={'s':['S'],'m':['M'],'l':['L'],'magnum':['MAGNUM'],'xl':['MAGNUM'],'xxl':['XXL'],'rettangolari':['RETT.'],'panini':['PANINI'],'toast':['TOAST'],
   'tostoni':['TOSTONI'],'tostone':['TOSTONI'],'maxi tostoni':['MAXI TST.'],'maxi tostone':['MAXI TST.'],'galaxy':['GALAXY'],'club':['CLUB'],'veline':['VEL. 18x25','VEL. 25x37']};
 function abitudini(c){var art=[];(c.prodotti||[]).forEach(function(p){(PROD_ART[nNorm(p).trim()]||[]).forEach(function(a){if(art.indexOf(a)<0)art.push(a);});});return art;}
+// sigilli della rubrica -> pulsanti di DeliverySync (Jacopo 23/11): "(omaggio)" = om., altrimenti € (a pagamento e' il caso
+// normale e in rubrica non si scrive); Produzione propria non c'e' in DeliverySync; "Bianchi" mai colorato
+function abitudiniSigilli(c){var out=[];(c.sigilli||[]).forEach(function(x){var n=nNorm(x),b=/^pers/.test(n)?'Pers.':/^color/.test(n)?'Color.':/^smile/.test(n)?'Smile':'';
+  if(!b)return;var v=b+(/omaggio/.test(n)?' om.':' €');if(out.indexOf(v)<0)out.push(v);});return out;}
 function testoAbitudini(c){var p=(c.prodotti||[]).join(' · '),s=(c.sigilli||[]).join(' · ');return (p?'Prende di solito: '+p:'Prodotti non segnati in rubrica')+(s?' · Sigilli: '+s:'');}
 function luogoDi(c){var via=String(c.indirizzo||'').split(/,\s*\d{5}/)[0];return (c.comune||'')+(via&&via!==c.comune?', '+via:'');}
 function cercaClienti(q){var t=nNorm(q).trim().split(/\s+/).filter(Boolean);if(!t.length)return [];
