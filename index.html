@@ -752,21 +752,34 @@ function toast(msg,type){
   el.classList.add('show');clearTimeout(tt);
   tt=setTimeout(function(){el.classList.remove('show');},2600);
 }
+// TASTO INDIETRO E FINESTRE (review 23/11, Jacopo): ogni finestra aperta (anche la conferma "Sì / Annulla") occupa un
+// passo della cronologia, cosi' il tasto indietro del telefono chiude prima la finestra e non la giornata che c'e' sotto
+// Il passo di una finestra chiusa si toglie subito dopo (setTimeout), solo se intanto non se n'e' aperta un'altra
+// (chiudi + apri subito: la finestra nuova usa lo stesso passo; Chrome con back() + pushState insieme tornava indietro di due)
+var OV_PASSO=false,SALTA_POP=0,CHIUDI_DOPO=false;
+function ovAperta(){return document.getElementById('ov').classList.contains('show');}
+function cfAperta(){return document.getElementById('cfov').classList.contains('show');}
+function passoFinestra(){CHIUDI_DOPO=false;if(OV_PASSO)return;OV_PASSO=true;try{history.pushState(Object.assign({},history.state||{},{ov:1}),'','');}catch(e){}}
+function chiudiPasso(){if(!OV_PASSO||CHIUDI_DOPO)return;CHIUDI_DOPO=true;
+  setTimeout(function(){if(!CHIUDI_DOPO)return;CHIUDI_DOPO=false;if(ovAperta()||cfAperta())return;OV_PASSO=false;
+    if(history.state&&history.state.ov){SALTA_POP++;history.back();}},0);}
 function confirm(msg,cb){
   document.getElementById('cfmsg').textContent=msg;
-  document.getElementById('cfov').classList.add('show');
-  document.getElementById('cfyes').onclick=function(){document.getElementById('cfov').classList.remove('show');cb();};
-  document.getElementById('cfno').onclick=function(){document.getElementById('cfov').classList.remove('show');};
+  document.getElementById('cfov').classList.add('show');passoFinestra();
+  function chiudi(){document.getElementById('cfov').classList.remove('show');if(!ovAperta())chiudiPasso();}
+  document.getElementById('cfyes').onclick=function(){chiudi();cb();};
+  document.getElementById('cfno').onclick=chiudi;
 }
 function openOv(id){
   document.querySelectorAll('#ov .modal').forEach(function(m){m.style.display='none';});
   document.getElementById(id).style.display='block';
-  document.getElementById('ov').classList.add('show');
+  document.getElementById('ov').classList.add('show');passoFinestra();
 }
-function closeOv(){
+function nascondiOv(){
   document.getElementById('ov').classList.remove('show');
   document.querySelectorAll('#ov .modal').forEach(function(m){m.style.display='none';});
 }
+function closeOv(){nascondiOv();if(!document.getElementById('cfov').classList.contains('show'))chiudiPasso();}
 var CONN_STATE='', VERIFIED_ONLINE=false;
 function setConn(ok,pending){
   var c=document.getElementById('conn'),st=ok?'ok':(pending?'pend':'off');
@@ -1963,6 +1976,15 @@ document.getElementById('reset-all-btn').addEventListener('click',function(){
 history.replaceState({screen:'home'},'','');
 
 window.addEventListener('popstate',function(e){
+  if(SALTA_POP>0){SALTA_POP--;return;}  // indietro fatto dall'app chiudendo una finestra: niente altro da fare
+  var cf=document.getElementById('cfov');
+  if(cf.classList.contains('show')||ovAperta()){  // tasto indietro con una finestra aperta: si chiude solo quella
+    OV_PASSO=false;CHIUDI_DOPO=false;
+    if(cf.classList.contains('show')){cf.classList.remove('show');if(ovAperta())passoFinestra();}
+    else nascondiOv();
+    return;
+  }
+  OV_PASSO=false;CHIUDI_DOPO=false;
   var state=e.state;
   if(!state||state.screen==='home'){
     if(document.getElementById('sday').classList.contains('show')){
