@@ -1744,6 +1744,19 @@ function linkGiro(partenza,tappe){var punti=[partenza].concat(tappe,[MAGAZZINO])
     out.push('https://www.google.com/maps/dir/?api=1&travelmode=driving&origin='+s(pezzo[0])+'&destination='+s(pezzo[pezzo.length-1])+
       (pezzo.length>2?'&waypoints='+encodeURIComponent(pezzo.slice(1,-1).map(s).join('|')):''));}
   return out;}
+// "EVITA AUTOSTRADE" (27/11): i link di Google Maps non possono accendere ne' spegnere le "Opzioni percorso", e Maps
+// ricorda l'ultima scelta (giro senza autostrade un giorno -> il giorno dopo il "più veloce" restava senza autostrade).
+// DeliverySync ricorda su questo telefono quale giro hai aperto l'ultima volta in Maps e lo dice sopra il giro.
+function ultimeStrade(){try{return JSON.parse(localStorage.getItem('ds_giro_strade')||'null');}catch(e){return null;}}
+function segnaStrade(senza){try{localStorage.setItem('ds_giro_strade',JSON.stringify({senza:!!senza,quando:new Date().toISOString()}));}catch(e){}}
+function avvisoStrade(senza){var u=ultimeStrade(),d=document.createElement('div'),ap='tocca ⋮ (in alto a destra) → <b>Opzioni percorso</b>';
+  d.className='wbox';d.style.cssText='padding:8px 10px;margin:8px 0 2px;font-size:12px;line-height:1.45';
+  var quando=u&&u.quando&&!isNaN(new Date(u.quando))?' ('+new Date(u.quando).toLocaleDateString('it-IT',{day:'numeric',month:'short'})+')':'';
+  if(senza)d.innerHTML='⚠ <b>Prima di partire, in Google Maps</b> '+ap+' e attiva «Evita autostrade» e «Evita pedaggi»: il link non lo può fare da solo. Maps se lo ricorda: al prossimo giro più veloce spegnili.';
+  else if(u&&u.senza)d.innerHTML='⚠ <b>L\'ultima volta hai aperto in Maps il giro senza autostrade</b>'+quando+': in Google Maps «Evita autostrade» è probabilmente ancora acceso. Prima di partire '+ap+' e spegni «Evita autostrade» e «Evita pedaggi», altrimenti Maps non fa il percorso più veloce.';
+  else{d.innerHTML='ℹ️ Google Maps ricorda le opzioni dell\'ultima volta: se il percorso ti sembra più lungo, '+ap+' e controlla che «Evita autostrade» sia spento.';
+    d.style.background='var(--surface2)';d.style.borderColor='var(--border)';}
+  return d;}
 function righeOrdini(rows){return rows.map(function(o){return [USERS[o.userId]?USERS[o.userId].label:o.userId,o.locale||'',o.luogo||'',
   nomiNuovi((o.merce||'')+(o.omaggio?(((o.merce&&o.merce.trim())?'+':'')+o.omaggio+' OMAGGIO'):'')),o.sigilli||'',o.note||''];});}
 function datiGiro(rows,titolo){return {titolo:titolo,nome:'Giro',colonne:['Azienda','Nome Locale','Luogo Consegna','Articoli','Sigilli','Note'],
@@ -1787,19 +1800,19 @@ function partenzaGiro(){var G=GIRO;if(G.partenza==='qui'&&G.qui)return {p:G.qui,
 function calcolaUno(){var G=GIRO,s=puntiScelti(),pa=partenzaGiro();if(!s.con.length){toast('Nessuna consegna con la posizione','err');return;}
   G.attesa=true;G.errore='';G.ris=null;disegnaGiro();
   Promise.all([calcolaPercorso(pa.p,s.con,false),calcolaPercorso(pa.p,s.con,true)]).then(function(r){
-    G.ris={tipo:'uno',varianti:[{nome:'⚡ Più veloce',r:r[0]},{nome:'🛣️ Senza autostrada e pedaggi',r:r[1]}],scelta:0,senza:s.senza,pa:pa};})
+    G.ris={tipo:'uno',varianti:[{nome:'⚡ Più veloce',r:r[0]},{nome:'🛣️ Senza autostrada e pedaggi',r:r[1],senzaAutostrada:true}],scelta:0,senza:s.senza,pa:pa};})
     .catch(function(e){G.errore=e.message;}).then(function(){G.attesa=false;disegnaGiro();});}
 function calcolaDue(){var G=GIRO,s=puntiScelti(),pa=partenzaGiro();if(s.con.length<2){toast('Servono almeno 2 consegne con la posizione','err');return;}
   var due=dividiInDue(pa.p,s.con);G.attesa=true;G.errore='';G.ris=null;disegnaGiro();
   Promise.all([calcolaPercorso(pa.p,due[0],false),calcolaPercorso(pa.p,due[1],false)]).then(function(r){
     G.ris={tipo:'due',giri:[{nome:'Giro 1',r:r[0]},{nome:'Giro 2',r:r[1]}],senza:s.senza,pa:pa};})
     .catch(function(e){G.errore=e.message;}).then(function(){G.attesa=false;disegnaGiro();});}
-function boxGiro(div,bott,titolo,r,pa,extra){var box=div('giro-box');
+function boxGiro(div,bott,titolo,r,pa,extra,senza){var box=div('giro-box');
   var min=r.min+r.ordine.length*SOSTA_MIN;
   box.appendChild(div('', '<h4>'+esc(titolo)+'</h4><div style="font-size:13px">'+r.km+' km · '+oreMin(r.min)+' di strada + soste = <b>rientro verso le '+rientro(pa.ora,min)+'</b></div>'));
   r.ordine.forEach(function(t,i){var st=div('giro-st','<b style="min-width:22px">'+(i+1)+'.</b>');var tx=div('', '<b>'+esc(t.o.locale)+'</b><small>'+esc(t.o.luogo||'')+'</small>');tx.style.flex='1';st.appendChild(tx);
-    var a=document.createElement('a');a.href=linkNaviga(t);a.target='_blank';a.rel='noopener';a.textContent='🧭 Naviga';a.style.cssText='font-size:12px;font-weight:700;color:#0ea5e9;text-decoration:none;white-space:nowrap';st.appendChild(a);box.appendChild(st);});
-  var bb=div('giro-btns');linkGiro(pa.p,r.ordine).forEach(function(u,i,arr){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';
+    var a=document.createElement('a');a.href=linkNaviga(t);a.target='_blank';a.rel='noopener';a.textContent='🧭 Naviga';a.addEventListener('click',function(){segnaStrade(senza);});a.style.cssText='font-size:12px;font-weight:700;color:#0ea5e9;text-decoration:none;white-space:nowrap';st.appendChild(a);box.appendChild(st);});
+  var bb=div('giro-btns');linkGiro(pa.p,r.ordine).forEach(function(u,i,arr){var a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';a.addEventListener('click',function(){segnaStrade(senza);});
     a.textContent='🗺️ Apri in Google Maps'+(arr.length>1?' ('+(i+1)+'/'+arr.length+')':'');bb.appendChild(a);});
   bb.appendChild(bott('📥 Excel di questo giro',false,function(){excelGiro(r.ordine.map(function(t){return t.o;}),'Consegne — '+GIRO.giorno+' — '+titolo);}));
   bb.appendChild(bott('🖨️ Stampa / PDF',false,function(){stampaTabella(datiGiro(r.ordine.map(function(t){return t.o;}),'Consegne — '+GIRO.giorno+' — '+titolo));}));
@@ -1808,9 +1821,11 @@ function mostraRisultato(B,div,bott){var R=GIRO.ris,pa=R.pa;
   if(R.tipo==='uno'){var sel=div('giro-btns');R.varianti.forEach(function(v,i){var min=v.r.min+v.r.ordine.length*SOSTA_MIN;
       sel.appendChild(bott(v.nome+' · '+v.r.km+' km · rientro '+rientro(pa.ora,min),R.scelta===i,function(){R.scelta=i;disegnaGiro();}));});
     B.appendChild(sel);var v=R.varianti[R.scelta];
+    B.appendChild(avvisoStrade(!!v.senzaAutostrada));  // "Evita autostrade" in Google Maps (27/11)
     B.appendChild(boxGiro(div,bott,v.nome.replace(/^\S+\s/,'')+' ('+pa.nome+')',v.r,pa,bott('✅ Metti le consegne in quest\'ordine',false,function(){
-      applicaOrdine(v.r.ordine.map(function(t){return t.o;}),GIRO.rows).then(function(){toast('Consegne riordinate ✓');closeOv();},function(e){toast('Non riordinato: '+e.message,'err');});},'background:#1d6f42;color:#fff;border-color:#1d6f42')));}
-  else{R.giri.forEach(function(g){B.appendChild(boxGiro(div,bott,g.nome+' ('+pa.nome+')',g.r,pa));});
+      applicaOrdine(v.r.ordine.map(function(t){return t.o;}),GIRO.rows).then(function(){toast('Consegne riordinate ✓');closeOv();},function(e){toast('Non riordinato: '+e.message,'err');});},'background:#1d6f42;color:#fff;border-color:#1d6f42'),!!v.senzaAutostrada));}
+  else{B.appendChild(avvisoStrade(false));  // i due giri sono "più veloce"
+    R.giri.forEach(function(g){B.appendChild(boxGiro(div,bott,g.nome+' ('+pa.nome+')',g.r,pa,null,false));});
     B.appendChild(div('giro-btns')).appendChild(bott('✅ Metti le consegne in quest\'ordine (prima il giro 1, poi il giro 2)',false,function(){
       applicaOrdine(R.giri[0].r.ordine.concat(R.giri[1].r.ordine).map(function(t){return t.o;}),GIRO.rows).then(function(){toast('Consegne riordinate ✓');closeOv();},function(e){toast('Non riordinato: '+e.message,'err');});},'background:#1d6f42;color:#fff;border-color:#1d6f42'));}
   if(R.senza.length)B.appendChild(div('', '<div style="margin-top:10px;font-size:13px"><b>⚠ Fuori dal calcolo (senza posizione):</b> '+R.senza.map(function(o){return esc(o.locale);}).join(', ')+'. Mettile tu nel punto giusto, o «📍 Trova» e ricalcola.</div>'));}
