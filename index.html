@@ -1470,7 +1470,7 @@ function openOrderModal(editId,defDay){
   fl.oninput=function(){selCli=null;evidenzia(null);sg.innerHTML='';var l=fl.value.trim().length>=2?cercaClienti(fl.value):[];
     if(l.length){var box=document.createElement('div');box.className='cli-sugg';
       l.forEach(function(c){var b=document.createElement('button');b.type='button';
-        var refs=(c.referenti||[]).map(function(r){return r.nome;}).filter(Boolean).join(', ');
+        var refs=(c.referenti||[]).map(function(r){return nomeRef(r,c);}).filter(Boolean).join(', ');
         b.innerHTML=esc(c.locale||c.nomeGoogle)+'<small>'+esc(luogoDi(c))+(refs?' · '+esc(refs):'')+'</small>';
         b.onclick=function(){selCli=c._doc;fl.value=c.locale||c.nomeGoogle||'';document.getElementById('fluo').value=luogoDi(c);sg.innerHTML='';evidenzia(c);info();};
         box.appendChild(b);});
@@ -1653,6 +1653,34 @@ function abitudiniSigilli(c){var out=[];(c.sigilli||[]).forEach(function(x){var 
   if(!b)return;var v=b+(/omaggio/.test(n)?' om.':' €');if(out.indexOf(v)<0)out.push(v);});return out;}
 function testoAbitudini(c){var p=(c.prodotti||[]).join(' · '),s=(c.sigilli||[]).join(' · ');return (p?'Prende di solito: '+p:'Prodotti non segnati in rubrica')+(s?' · Sigilli: '+s:'');}
 function luogoDi(c){var via=String(c.indirizzo||'').split(/,\s*\d{5}/)[0];return (c.comune||'')+(via&&via!==c.comune?', '+via:'');}
+// NOME DEL REFERENTE (27/11, Jacopo: come nell'app della mappa, framezzino-network 9fbab43). Se la scheda non ha il nome della
+// persona, o il nome non c'e' piu' nel contatto, si prende dalle parole in fondo al contatto dopo il nome del locale
+// ("Tram Schio Bar Roma Luca" -> "Luca"), solo se sembra un nome di persona; altrimenti niente. Stessa regola della mappa.
+var REF_GENERICHE=['bar','caffe','cafe','caffetteria','pub','bistrot','bistro','ristorante','pizzeria','pasticceria','gelateria','osteria','hostaria',
+  'trattoria','panificio','tabacchi','tabaccheria','distributore','distr','eni','enilive','q8','esso','snack','birreria','enoteca','hotel','albergo',
+  'chiosco','paninoteca','piadineria','lounge','gastronomia','circolo','farmacia','agriturismo','locanda','spaccio','mensa','tavola','calda'];
+var REF_NON_NOME=['srl','sas','snc','spa','srls','soc','ditta','ufficio','uff','uffici','ordini','amministrazione','resp','responsabile','acquisti',
+  'mail','email','paga','pag','elle','esse','emme','magnum','maxi','tostoni','sig','om','color','fat','fatt','iva','piva','tv','vr','vi','pd','nuovo',
+  'nuova','intestazione','addetta','addetto','collega','fronte','aeroporto','service','servizi','trade','team','group','food','drink','drinks','coffee',
+  'cooffee','club','bio','track','shell','petrol','fuel','gas','golf','padel','centro','center','si','no'];
+var REF_FERMA=['via','viale','piazza','piazzale','corso','contra','contrada','strada','presso','ex','dal','civico','loc','localita'];
+function tokRef(s){return nNorm(s).replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(Boolean);}
+function nomeDaContatto(contatto,c){
+  var parole=String(contatto||'').trim().split(/\s+/).filter(Boolean);
+  if(parole.length&&/^ex$/i.test(parole[0]))parole.shift();
+  if(parole.length&&/^(tram|tam)$/i.test(parole[0]))parole.shift();
+  var loc={};tokRef([c.locale,c.nomeGoogle,c.comune].join(' ')).forEach(function(t){loc[t]=1;});var lk=Object.keys(loc);
+  function delLocale(t){if(loc[t]||REF_GENERICHE.indexOf(t)>=0)return true;
+    return t.length>=4&&lk.some(function(l){return l.length>=4&&(t.indexOf(l)===0||l.indexOf(t)===0);});}
+  var ref=[];
+  for(var i=parole.length-1;i>=0;i--){var t=tokRef(parole[i]);if(!t.length)continue;  // emoji: saltate
+    if(REF_FERMA.indexOf(t[0])>=0||t.some(delLocale))break;ref.unshift(parole[i]);}
+  var parti=[];ref.forEach(function(w){parti=parti.concat(tokRef(w));});
+  if(!ref.length||ref.length>=parole.length||ref.length>4||/[0-9@:+\/]/.test(ref.join(' '))||parti.some(function(x){return REF_NON_NOME.indexOf(x)>=0;}))return '';
+  return ref.join(' ');}
+function nomeRef(r,c){var n=String(r.nome||'').trim();
+  if(n&&(!r.contatto||nNorm(r.contatto).indexOf(nNorm(n))>=0))return n;
+  return nomeDaContatto(r.contatto,c||{})||n;}
 function cercaClienti(q){var t=nNorm(q).trim().split(/\s+/).filter(Boolean);if(!t.length)return [];
   return NCLI.lista.filter(function(c){var h=nNorm([c.locale,c.nomeGoogle,c.comune,c.indirizzo,(c.referenti||[]).map(function(r){return (r.nome||'')+' '+(r.contatto||'');}).join(' ')].join(' '));
     return t.every(function(x){return h.indexOf(x)>=0;});}).slice(0,8);}
