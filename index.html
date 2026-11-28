@@ -237,6 +237,19 @@ textarea{resize:none;}
 .cond-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px;font-weight:700}
 .cond-row input{padding:8px 10px;border-radius:9px;border:1.5px solid var(--border);font-size:16px;background:#fff;outline:none}
 .cond-es{font-size:12px;color:var(--muted)}
+/* D2 (28/11): sigilli con quantita' */
+.sig-r{border:1.5px solid var(--border);border-radius:12px;padding:9px 10px;margin-bottom:8px;background:#fff}
+.sig-h{display:flex;align-items:center;justify-content:space-between;font-size:14px}
+.sig-x{border:1.5px solid var(--border);background:var(--surface2);border-radius:50%;width:28px;height:28px;font-weight:700;cursor:pointer}
+.sig-q,.sig-c,.sig-sp{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:13px;font-weight:700}
+.sig-pm{width:34px;height:34px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface2);font-size:18px;font-weight:700;cursor:pointer}
+.sig-n{min-width:52px;text-align:center;font-size:15px}
+.sig-col{padding:6px 10px;border-radius:16px;border:2px solid var(--border);background:#fff;font-size:12px;font-weight:700;cursor:pointer}
+.sig-sp input{width:58px;padding:6px 8px;border-radius:8px;border:1.5px solid var(--border);font-size:16px}
+.sig-warn{color:#b45309;font-size:12px}
+.sig-g{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.cond-btn.sig-abit{background:#fff4d6;border-color:#f59e0b;color:#92400e}
+.sig-old{border-color:var(--border);background:var(--surface2);color:var(--muted)}
 .giro-st{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
 .giro-st small{display:block;color:var(--muted);font-size:11px}
 .giro-btns{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
@@ -1180,7 +1193,7 @@ function renderDay(){
     var headLeft=selMode?'<div class="sel-circle'+(isSel?' on':'')+'" data-id="'+esc(o.id)+'">'+(isSel?'✓':'')+'</div>':'<span class="utag" style="color:'+u.color+';background:'+u.bg+';border:1px solid '+u.color+'44">'+u.emoji+' '+u.label+'</span>';
     var actions=!selMode?'<button class="ocb bedit" data-id="'+esc(o.id)+'">✏️</button><button class="ocb bdel" data-id="'+esc(o.id)+'" style="color:var(--red)">🗑</button>':'';
     var repLine=selMode?'<div style="font-size:10px;font-weight:700;color:'+u.color+';margin-bottom:4px;">'+u.emoji+' '+u.label+'</div>':'';
-    c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(nomiNuovi(o.merce))+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli)+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(nomiNuovi(o.omaggio))+'</span></div>':'')+(o.condizioni?'<div class="of"><span class="oi">🏷️</span><span class="ov">'+esc(o.condizioni)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
+    c.innerHTML='<div class="och">'+dragHandle+headLeft+'<div class="oacts">'+actions+'</div></div>'+repLine+'<div class="oloc">'+esc(o.locale)+'</div><div class="of"><span class="oi">📍</span><span class="ov">'+esc(o.luogo)+'</span></div><div class="of"><span class="oi">📦</span><span class="ov">'+esc(nomiNuovi(o.merce))+'</span></div>'+(o.sigilli?'<div class="of"><span class="oi">🔒</span><span class="ov">'+esc(o.sigilli).split('; ').join('<br>')+'</span></div>':'')+(o.omaggio?'<div class="of"><span class="oi">🎁</span><span class="ov">'+esc(nomiNuovi(o.omaggio))+'</span></div>':'')+(o.condizioni?'<div class="of"><span class="oi">🏷️</span><span class="ov">'+esc(o.condizioni)+'</span></div>':'')+(o.note?'<div class="of"><span class="oi">📝</span><span class="ov dim">'+esc(o.note)+'</span></div>':'');
     list.appendChild(c);
   });
   list.querySelectorAll('.sel-circle').forEach(function(b){b.addEventListener('click',function(e){e.stopPropagation();var id=b.dataset.id;if(selIds[id])delete selIds[id];else selIds[id]=true;renderDay();});});
@@ -1357,7 +1370,7 @@ function renderShipments(){
       '<div class="sc-name">'+esc(s.locale)+'</div>'+(s.luogo?'<div class="sc-field">📍 '+esc(s.luogo)+'</div>':'')+
       '<div class="sc-meta">'+chanBadge+'</div>'+
       (s.merce?'<div class="sc-field">📦 '+esc(nomiNuovi(s.merce))+'</div>':'')+
-      (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli)+'</div>':'')+
+      (s.sigilli?'<div class="sc-field">🔒 '+esc(s.sigilli).split('; ').join('<br>')+'</div>':'')+
       (s.omaggio?'<div class="sc-field">🎁 '+esc(nomiNuovi(s.omaggio))+'</div>':'')+
       (s.condizioni?'<div class="sc-field">🏷️ '+esc(s.condizioni)+'</div>':'')+
       (s.note?'<div class="sc-field" style="color:var(--muted);">📝 '+esc(s.note)+'</div>':'')+
@@ -1470,7 +1483,7 @@ function openOrderModal(editId,defDay){
   buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});
 
   var selSig = order?order.sigilli:'';
-  buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});
+  var sigP=buildSigilli('osig-pick',selSig,function(v){selSig=v;});
   var cond=buildCondizioni('fcond',order?order.condizioni:'',isEdit);
 
   // cliente dalla mappa: suggerimenti mentre scrivi il locale (scrivere a mano va sempre bene), abitudini evidenziate,
@@ -1479,7 +1492,7 @@ function openOrderModal(editId,defDay){
   var fl=document.getElementById('floc'),sg=document.getElementById('fcli-sugg'),inf=document.getElementById('fcli-info');
   sg.innerHTML='';
   function evidenzia(c){cond.cliente(c);var nuovo=c?abitudini(c):[],sig=c?abitudiniSigilli(c):[];
-    if(sig.join('|')!==ABIT_SIG.join('|')){ABIT_SIG=sig;buildChipPicker('osig-pick', SIGILLI_OPTS, selSig, u.color, u.bg, function(v){selSig=v;});}
+    if(JSON.stringify(sig)!==JSON.stringify(ABIT_SIG)){ABIT_SIG=sig;sigP.abitudini(sig);}
     if(nuovo.join('|')===ABIT_ART.join('|'))return;ABIT_ART=nuovo;buildArticoloPicker('fmer-pick', selMer, function(v){selMer=v;});}
   function info(){var c=selCli&&NCLI.perId[selCli],t=fl.value.trim();
     if(c){inf.innerHTML='✓ Cliente della mappa · '+esc(testoAbitudini(c))+'<a href="'+URL_MAPPA+'#cliente='+encodeURIComponent(c._doc)+'" target="_blank" rel="noopener">✏️ Correggi</a>';return;}
@@ -1559,7 +1572,7 @@ function openShipmentModal(editId){
   var selSSig = ship?ship.sigilli:'';
   var selSpag = ship?ship.pagamento:'';
   ABIT_ART=[];ABIT_SIG=[];
-  buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
+  var sigP=buildSigilli('ssig-pick',selSSig,function(v){selSSig=v;});
   var cond=buildCondizioni('scond',ship?ship.condizioni:'',isEdit,'spedizione');
   var selSMer = ship?ship.merce:'';
   buildArticoloPicker('smer-pick', selSMer, function(v){selSMer=v;});
@@ -1571,7 +1584,7 @@ function openShipmentModal(editId){
   var fl=document.getElementById('sloc'),sg=document.getElementById('scli-sugg'),inf=document.getElementById('scli-info');
   sg.innerHTML='';
   function evidenzia(c){cond.cliente(c);var nuovo=c?abitudini(c):[],sig=c?abitudiniSigilli(c):[];
-    if(sig.join('|')!==ABIT_SIG.join('|')){ABIT_SIG=sig;buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});}
+    if(JSON.stringify(sig)!==JSON.stringify(ABIT_SIG)){ABIT_SIG=sig;sigP.abitudini(sig);}
     if(nuovo.join('|')===ABIT_ART.join('|'))return;ABIT_ART=nuovo;buildArticoloPicker('smer-pick', selSMer, function(v){selSMer=v;});}
   function info(){var c=selCli&&NCLI.perId[selCli],t=fl.value.trim();
     if(c){inf.innerHTML='✓ Cliente della mappa · '+esc(testoAbitudini(c))+((c.pagamento||[]).length?' · Pagamento: '+esc(c.pagamento.join(' · ')):'')+'<a href="'+URL_MAPPA+'#cliente='+encodeURIComponent(c._doc)+'" target="_blank" rel="noopener">✏️ Correggi</a>';return;}
@@ -1689,6 +1702,89 @@ function avviaClientiMappa(){nKey().then(function(k){if(!k){NCLI.stato='nokey';r
   },function(){NCLI.stato='errore';});});}
 var PROD_ART={'s':['S'],'m':['M'],'l':['L'],'magnum':['MAGNUM'],'xl':['MAGNUM'],'xxl':['XXL'],'rettangolari':['RETT.'],'panini':['PANINI'],'toast':['TOAST'],
   'tostoni':['TOSTONI'],'tostone':['TOSTONI'],'maxi tostoni':['MAXI TST.'],'maxi tostone':['MAXI TST.'],'galaxy':['GALAXY'],'club':['CLUB'],'veline':['VEL. 18x25','VEL. 25x37']};
+// ── SIGILLI CON QUANTITA' (D2, 28/11) ──────────────────────────────────────────────────────────────────
+// Catalogo Framezzino (27/11), kit da 400 tasche. Nell'ordine piu' righe: tipo, kit, colori, omaggio. Si salvano nel campo
+// di testo «sigilli» di sempre (niente campo nuovo), una riga per tipo separata da «; »:
+//   «2 kit Produzione propria verde» · «1 kit Colorati (0,5 verde + 0,5 rosso)» · «1 kit Colorati misti» ·
+//   «1 kit Personalizzati a 3 colori omaggio» · «1 kit Vegano»
+// Gli ordini di prima («Pers. om., Color. €», «Bianchi») restano com'erano: si vedono come «Scritti prima».
+var SIG_GRUPPI=[['Informativi',['Vegano','Vegetariano','Senza lattosio','Senza glutine']],
+  ['Produzione',['Produzione propria','Produzione artigianale']],
+  ['Grafici',['Carnevale','Pasqua','Estivi','Halloween','Natale','Smile','Colorati']],
+  ['Personalizzati',['Personalizzati']]];
+var SIG_TIPI=[].concat.apply([],SIG_GRUPPI.map(function(g){return g[1];}));
+var SIG_COLORATI=['Produzione propria','Produzione artigianale','Colorati'];  // un colore, piu' colori divisi, o misti
+var SIG_COLORI=[['arancione','#f97316'],['rosso','#ef4444'],['verde','#22c55e'],['azzurro','#38bdf8'],['viola','#a855f7'],['giallo','#eab308']];
+function numIt(n){return String(Math.round(n*100)/100).replace('.',',');}
+function numDa(t){return parseFloat(String(t||'').replace(',','.'))||0;}
+function sigTesto(r){var t=numIt(r.n)+' kit '+r.tipo;
+  if(SIG_COLORATI.indexOf(r.tipo)>=0){if(r.misti)t+=' misti';else if(r.colori.length===1)t+=' '+r.colori[0].c;
+    else if(r.colori.length>1)t+=' ('+r.colori.map(function(x){return numIt(x.n)+' '+x.c;}).join(' + ')+')';}
+  if(r.tipo==='Personalizzati'&&r.ncol)t+=' a '+r.ncol+(r.ncol===1?' colore':' colori');
+  return t+(r.om?' omaggio':'');}
+function sigDaTesto(t){var m=String(t).trim().match(/^(\d+(?:,\d+)?) kit (.+)$/);if(!m)return null;
+  var resto=m[2],om=/ omaggio$/.test(resto);if(om)resto=resto.slice(0,-8);
+  var tipo=SIG_TIPI.slice().sort(function(a,b){return b.length-a.length;}).find(function(x){return resto===x||resto.indexOf(x+' ')===0;});
+  if(!tipo)return null;var r={n:numDa(m[1]),tipo:tipo,colori:[],misti:false,ncol:0,om:om},c=resto.slice(tipo.length).trim();
+  if(c==='misti')r.misti=true;
+  else if(/^a \d colori?$/.test(c))r.ncol=parseInt(c.slice(2),10);
+  else if(/^\(.+\)$/.test(c))c.slice(1,-1).split(' + ').forEach(function(p){var q=p.match(/^(\d+(?:,\d+)?) (\S+)$/);if(q)r.colori.push({c:q[2],n:numDa(q[1])});});
+  else if(c)r.colori.push({c:c,n:r.n});
+  return r;}
+function sigLeggi(v){var righe=[],vecchi=[];String(v||'').split(';').forEach(function(x){x=x.trim();if(!x)return;var r=sigDaTesto(x);
+  if(r)righe.push(r);else x.split(',').forEach(function(y){y=y.trim();if(y&&vecchi.indexOf(y)<0)vecchi.push(y);});});return {righe:righe,vecchi:vecchi};}
+// righe dei totali: un colore = «Produzione propria verde», divisi = ogni colore con i suoi kit, misti = «... misti»
+function sigParti(r){return r.misti?[{k:r.tipo+' misti',n:r.n}]:r.colori.length?r.colori.map(function(x){return {k:r.tipo+' '+x.c,n:x.n};}):[{k:r.tipo,n:r.n}];}
+function buildSigilli(id,iniziale,onChange){
+  var box=document.getElementById(id),st=sigLeggi(iniziale),aperto=false,abit=[];box.style.display='block';
+  function el(tag,cls,t){var x=document.createElement(tag);if(cls)x.className=cls;if(t!=null)x.textContent=t;if(tag==='button')x.type='button';return x;}
+  function valore(){return st.righe.map(sigTesto).concat(st.vecchi).join('; ');}
+  function cambia(){onChange(valore());draw();}
+  function dividi(r){var k=r.colori.length;r.colori.forEach(function(x){x.n=Math.round(r.n/k*100)/100;});}
+  function riga(r,i){var d=el('div','sig-r'),h=el('div','sig-h'),x=el('button','sig-x','✕');
+    h.appendChild(el('b','',r.tipo));x.title='Togli';x.onclick=function(){st.righe.splice(i,1);cambia();};h.appendChild(x);d.appendChild(h);
+    var q=el('div','sig-q'),meno=el('button','sig-pm','−'),piu=el('button','sig-pm','+'),om=el('button','cond-btn'+(r.om?' on':''),'🎁 Omaggio');
+    meno.onclick=function(){if(r.n<=1)return;r.n--;dividi(r);cambia();};piu.onclick=function(){r.n++;dividi(r);cambia();};
+    om.onclick=function(){r.om=!r.om;cambia();};q.append(meno,el('span','sig-n',numIt(r.n)+' kit'),piu,om);d.appendChild(q);
+    if(SIG_COLORATI.indexOf(r.tipo)>=0){var c=el('div','sig-c');
+      SIG_COLORI.forEach(function(k){var on=r.colori.some(function(y){return y.c===k[0];}),b=el('button','sig-col',k[0]);b.style.borderColor=k[1];
+        if(on){b.style.background=k[1];b.style.color='#fff';}
+        b.onclick=function(){r.misti=false;var j=r.colori.findIndex(function(y){return y.c===k[0];});if(j>=0)r.colori.splice(j,1);else r.colori.push({c:k[0],n:0});dividi(r);cambia();};
+        c.appendChild(b);});
+      var mi=el('button','sig-col','🎨 Misti');if(r.misti){mi.style.background='#334155';mi.style.borderColor='#334155';mi.style.color='#fff';}
+      mi.onclick=function(){r.misti=!r.misti;r.colori=[];cambia();};c.appendChild(mi);d.appendChild(c);
+      if(r.colori.length>1){var sp=el('div','sig-sp');sp.appendChild(el('span','','Kit per colore:'));
+        r.colori.forEach(function(y){var w=el('label',''),inp=el('input');inp.value=numIt(y.n);inp.inputMode='decimal';
+          inp.onchange=function(){y.n=numDa(inp.value);cambia();};w.append(inp,document.createTextNode(' '+y.c));sp.appendChild(w);});
+        var tot=r.colori.reduce(function(a,y){return a+y.n;},0);
+        if(Math.abs(tot-r.n)>0.001)sp.appendChild(el('span','sig-warn','⚠ fanno '+numIt(tot)+' kit, non '+numIt(r.n)));
+        d.appendChild(sp);}
+      else if(!r.colori.length&&!r.misti)d.appendChild(el('div','cond-es','Scegli uno o più colori (si dividono a metà, a terzi...: puoi cambiare i kit), oppure «Misti».'));}
+    if(r.tipo==='Personalizzati'){var pc=el('div','sig-c');pc.appendChild(el('span','','Colori:'));
+      [1,2,3,4,5,6].forEach(function(n){var b=el('button','sig-col',String(n));if(r.ncol===n){b.style.background='#334155';b.style.borderColor='#334155';b.style.color='#fff';}
+        b.onclick=function(){r.ncol=r.ncol===n?0:n;cambia();};pc.appendChild(b);});d.appendChild(pc);}
+    return d;}
+  function aggiungi(tipo,om){st.righe.push({n:1,tipo:tipo,colori:[],misti:false,ncol:0,om:!!om});aperto=false;cambia();}
+  function draw(){box.innerHTML='';
+    st.righe.forEach(function(r,i){box.appendChild(riga(r,i));});
+    if(st.vecchi.length){var v=el('div','cond-l');v.appendChild(el('span','cond-vuoto','Scritti prima:'));
+      st.vecchi.forEach(function(x,i){var ch=el('span','cond-ch sig-old',x),b=el('button','','✕');b.title='Togli';b.onclick=function(){st.vecchi.splice(i,1);cambia();};ch.appendChild(b);v.appendChild(ch);});
+      box.appendChild(v);}
+    if(!st.righe.length&&!st.vecchi.length)box.appendChild(el('div','cond-vuoto','Nessun sigillo (neutri)'));
+    var sol=abit.filter(function(a){return !st.righe.some(function(r){return r.tipo===a.tipo;});});
+    if(sol.length){var so=el('div','cond-l');so.style.marginTop='8px';so.appendChild(el('span','cond-vuoto','Di solito:'));
+      sol.forEach(function(a){var b=el('button','cond-btn sig-abit','＋ '+a.tipo+(a.om?' (omaggio)':''));b.onclick=function(){aggiungi(a.tipo,a.om);};so.appendChild(b);});
+      box.appendChild(so);}
+    var add=el('button','cond-btn'+(aperto?' on':''),aperto?'✕ Chiudi':'＋ Aggiungi sigilli');add.style.marginTop='8px';
+    add.onclick=function(){aperto=!aperto;draw();};box.appendChild(add);
+    if(aperto){var m=el('div','cond-menu');
+      SIG_GRUPPI.forEach(function(g){m.appendChild(el('div','sig-g',g[0]));var rr=el('div','cond-row');
+        g[1].forEach(function(t){var a=abit.find(function(y){return y.tipo===t;}),b=el('button','cond-btn'+(a?' sig-abit':''),t);
+          b.onclick=function(){aggiungi(t,a&&a.om);};rr.appendChild(b);});m.appendChild(rr);});
+      box.appendChild(m);}}
+  draw();
+  return {valore:valore,abitudini:function(l){abit=l||[];draw();}};}
+
 // ── CONDIZIONI DELL'ORDINE (D3, 28/11) ─────────────────────────────────────────────────────────────────
 // Proposte in automatico dalla scheda del cliente della mappa (riga «Condizioni» della rubrica) e cambiabili solo per
 // questo ordine: la scheda del cliente non cambia. «＋ Aggiungi condizione» apre il menu coi tipi (come nelle note):
@@ -1739,10 +1835,11 @@ function buildCondizioni(id,iniziali,fisse,cosa){
   return {valore:function(){return lista.join('; ');},
     cliente:function(c){c=c||null;if(c===cli)return;cli=c;if(!toccate)lista=scheda();draw();}};}
 function abitudini(c){var art=[];(c.prodotti||[]).forEach(function(p){(PROD_ART[nNorm(p).trim()]||[]).forEach(function(a){if(art.indexOf(a)<0)art.push(a);});});return art;}
-// sigilli della rubrica -> pulsanti di DeliverySync (Jacopo 23/11): "(omaggio)" = om., altrimenti € (a pagamento e' il caso
-// normale e in rubrica non si scrive); Produzione propria non c'e' in DeliverySync; "Bianchi" mai colorato
-function abitudiniSigilli(c){var out=[];(c.sigilli||[]).forEach(function(x){var n=nNorm(x),b=/^pers/.test(n)?'Pers.':/^color/.test(n)?'Color.':/^smile/.test(n)?'Smile':'';
-  if(!b)return;var v=b+(/omaggio/.test(n)?' om.':' €');if(out.indexOf(v)<0)out.push(v);});return out;}
+// sigilli della rubrica -> tipi del catalogo (D2, 28/11): {tipo, om}; "(omaggio)" = in omaggio (a pagamento e' il caso
+// normale e in rubrica non si scrive). Evidenziati in giallo nel menu e proposti in «Di solito».
+function abitudiniSigilli(c){var out=[];(c.sigilli||[]).forEach(function(x){var n=nNorm(x).trim();
+  var t=/^pers/.test(n)?'Personalizzati':/^color/.test(n)?'Colorati':SIG_TIPI.find(function(k){return n.indexOf(nNorm(k))===0;});
+  if(!t||out.some(function(a){return a.tipo===t;}))return;out.push({tipo:t,om:/omaggio/.test(n)});});return out;}
 function testoAbitudini(c){var p=(c.prodotti||[]).join(' · '),s=(c.sigilli||[]).join(' · ');return (p?'Prende di solito: '+p:'Prodotti non segnati in rubrica')+(s?' · Sigilli: '+s:'');}
 // indirizzo completo per spedire (quello di Google, senza "Italia"); se manca, comune e via
 function indirizzoSped(c){var a=String(c.indirizzo||'').replace(/,\s*Italia\s*$/i,'').trim();return a||luogoDi(c);}
@@ -1974,7 +2071,15 @@ function totaliArticoli(rows){var tot={},om={};
     Object.keys(b).forEach(function(k){tot[k]=(tot[k]||0)+b[k];om[k]=(om[k]||0)+b[k];});});
   var ord=TRAMEZZINI.concat(GRANTOSTATI,VELINE),chiavi=Object.keys(tot).sort(function(x,y){var i=ord.indexOf(x),j=ord.indexOf(y);return (i<0?99:i)-(j<0?99:j)||x.localeCompare(y);});
   var altri=rows.filter(function(o){return o.omaggio&&!Object.keys(parseArticoli(o.omaggio)).length;}).map(function(o){return o.omaggio;});
-  return {righe:chiavi.map(function(k){return [k,tot[k],om[k]||''];}),omaggiNonContati:altri};}
+  // sigilli (D2): kit per tipo e colore, di cui omaggio; quelli scritti prima del 28/11 non si possono contare
+  var sg={},so={},sv=[];
+  rows.forEach(function(o){var l=sigLeggi(o.sigilli);l.vecchi.forEach(function(x){if(sv.indexOf(x)<0)sv.push(x);});
+    l.righe.forEach(function(r){sigParti(r).forEach(function(p){sg[p.k]=(sg[p.k]||0)+p.n;if(r.om)so[p.k]=(so[p.k]||0)+p.n;});});});
+  function posSig(k){var t=SIG_TIPI.slice().sort(function(a,b){return b.length-a.length;}).find(function(x){return k===x||k.indexOf(x+' ')===0;});return SIG_TIPI.indexOf(t);}
+  var sk=Object.keys(sg).sort(function(a,b){return posSig(a)-posSig(b)||a.localeCompare(b);});
+  function tondo(n){return Math.round(n*100)/100;}
+  return {righe:chiavi.map(function(k){return [k,tot[k],om[k]||''];}),omaggiNonContati:altri,
+    sigilli:sk.map(function(k){return [k,tondo(sg[k]),so[k]?tondo(so[k]):''];}),sigilliNonContati:sv};}
 var CRC_T=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
 function crc32(b){var c=0xFFFFFFFF;for(var i=0;i<b.length;i++)c=CRC_T[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
 function zipStore(files){var enc=new TextEncoder(),parti=[],centr=[],off=0;
@@ -2028,6 +2133,10 @@ function stampaTabella(o){var W=adattaColonne(o),tot=W.reduce(function(a,b){retu
     h+='<table class="tot"><thead><tr><th>Totale per articolo</th><th>Quantità</th><th>di cui omaggio</th></tr></thead><tbody>'+
       o.totali.righe.map(function(x){return '<tr><td><b>'+esc(x[0])+'</b></td><td>'+x[1]+'</td><td>'+(x[2]||'')+'</td></tr>';}).join('')+'</tbody></table>';
     if(o.totali.omaggiNonContati.length)h+='<p>Omaggi scritti a parole (non contati): '+esc(o.totali.omaggiNonContati.join(' · '))+'</p>';}
+  if(o.totali&&o.totali.sigilli&&o.totali.sigilli.length){
+    h+='<table class="tot"><thead><tr><th>Sigilli (kit da 400)</th><th>Kit</th><th>di cui omaggio</th></tr></thead><tbody>'+
+      o.totali.sigilli.map(function(x){return '<tr><td><b>'+esc(x[0])+'</b></td><td>'+numIt(x[1])+'</td><td>'+(x[2]===''?'':numIt(x[2]))+'</td></tr>';}).join('')+'</tbody></table>';}
+  if(o.totali&&o.totali.sigilliNonContati&&o.totali.sigilliNonContati.length)h+='<p>Sigilli scritti prima (non contati): '+esc(o.totali.sigilliNonContati.join(' · '))+'</p>';
   d.innerHTML=h;setTimeout(function(){window.print();},150);}
 function creaXlsx(o){
   var righeXml=[],r=0,W=adattaColonne(o);
@@ -2044,6 +2153,9 @@ function creaXlsx(o){
   if(o.totali&&o.totali.righe.length){r++;riga(['TOTALE PER ARTICOLO','Quantità','di cui omaggio'],[4,4,4]);
     o.totali.righe.forEach(function(x){riga(x,[5,6,6]);});
     if(o.totali.omaggiNonContati.length)riga(['Omaggi scritti a parole (non contati): '+o.totali.omaggiNonContati.join(' · ')],0);}
+  if(o.totali&&o.totali.sigilli&&o.totali.sigilli.length){r++;riga(['TOTALE SIGILLI (kit da 400)','Kit','di cui omaggio'],[4,4,4]);
+    o.totali.sigilli.forEach(function(x){riga(x,[5,6,6]);});}
+  if(o.totali&&o.totali.sigilliNonContati&&o.totali.sigilliNonContati.length)riga(['Sigilli scritti prima (non contati): '+o.totali.sigilliNonContati.join(' · ')],0);
   var cols='<cols>'+W.map(function(w,i){return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>';}).join('')+'</cols>';
   var foglio='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     +'<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane ySplit="'+rigaTitoli+'" topLeftCell="A'+(rigaTitoli+1)+'" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
