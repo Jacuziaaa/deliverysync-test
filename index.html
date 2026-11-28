@@ -1740,7 +1740,8 @@ function buildSigilli(id,iniziale,onChange){
   function el(tag,cls,t){var x=document.createElement(tag);if(cls)x.className=cls;if(t!=null)x.textContent=t;if(tag==='button')x.type='button';return x;}
   function valore(){return st.righe.map(sigTesto).concat(st.vecchi).join('; ');}
   function cambia(){onChange(valore());draw();}
-  function dividi(r){var k=r.colori.length;r.colori.forEach(function(x){x.n=Math.round(r.n/k*100)/100;});}
+  // kit divisi tra i colori: l'ultimo colore prende il resto (1 kit in 3 = 0,33 + 0,33 + 0,34), cosi' il totale torna (review 28/11)
+  function dividi(r){var k=r.colori.length,q=Math.round(r.n/k*100)/100,u=Math.round((r.n-q*(k-1))*100)/100;r.colori.forEach(function(x,i){x.n=i===k-1?u:q;});}
   function riga(r,i){var d=el('div','sig-r'),h=el('div','sig-h'),x=el('button','sig-x','✕');
     h.appendChild(el('b','',r.tipo));x.title='Togli';x.onclick=function(){st.righe.splice(i,1);cambia();};h.appendChild(x);d.appendChild(h);
     var q=el('div','sig-q'),meno=el('button','sig-pm','−'),piu=el('button','sig-pm','+'),om=el('button','cond-btn'+(r.om?' on':''),'🎁 Omaggio');
@@ -2028,12 +2029,16 @@ function boxGiro(div,bott,titolo,r,pa,extra,senza,altro){var box=div('giro-box')
   var min=r.min+r.ordine.length*SOSTA_MIN;
   box.appendChild(div('', '<h4>'+esc(titolo)+'</h4><div style="font-size:13px">'+(r.ordine.length?r.km+' km · '+oreMin(r.min)+' di strada + soste = <b>rientro verso le '+rientro(pa.ora,min)+'</b>':'Nessuna consegna')+'</div>'));
   if(r.amano){var am=div('wbox','✋ <b>Ordine cambiato a mano</b>: km e orario sono quelli calcolati prima. ');am.style.cssText='padding:7px 10px;margin:6px 0;font-size:12px';
-    am.appendChild(bott('🔄 Ricalcola km e orari',false,function(){if(!r.ordine.length){r.km=0;r.min=0;r.amano=false;disegnaGiro();return;}
-      GIRO.attesa=true;disegnaGiro();calcolaPercorso(pa.p,r.ordine,!!senza,true).then(function(x){r.km=x.km;r.min=x.min;r.amano=false;},function(e){GIRO.errore=e.message;})
+    // con ⇄ cambiano tutti e due i giri: un solo «Ricalcola» li rifà tutti e due (review 28/11)
+    var due=!!(altro&&altro.amano);
+    am.appendChild(bott(due?'🔄 Ricalcola i due giri':'🔄 Ricalcola km e orari',false,function(){
+      function rifai(g){if(!g.ordine.length){g.km=0;g.min=0;g.amano=false;return Promise.resolve();}
+        return calcolaPercorso(pa.p,g.ordine,!!senza,true).then(function(x){g.km=x.km;g.min=x.min;g.amano=false;});}
+      GIRO.attesa=true;disegnaGiro();Promise.all([r].concat(altro&&altro.amano?[altro]:[]).map(rifai)).catch(function(e){GIRO.errore=e.message;})
         .then(function(){GIRO.attesa=false;disegnaGiro();});},'padding:5px 9px;border-radius:9px;border:1.5px solid #1d6f42;background:#fff;color:#1d6f42;font-size:12px;font-weight:700;margin-left:4px'));
     box.appendChild(am);}
   var piccolo='padding:3px 7px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface2);font-size:12px;font-weight:700;min-width:28px';
-  r.ordine.forEach(function(t,i){var st=div('giro-st','<b style="min-width:22px">'+(i+1)+'.</b>');var tx=div('', '<b>'+esc(t.o.locale)+'</b><small>'+esc(t.o.luogo||'')+'</small>');tx.style.flex='1';st.appendChild(tx);
+  r.ordine.forEach(function(t,i){var st=div('giro-st','<b style="min-width:22px">'+(i+1)+'.</b>');var uz=USERS[t.o.userId];if(uz){st.style.borderLeft='4px solid '+uz.color;st.style.paddingLeft='6px';st.style.paddingRight='6px';st.style.background=uz.color+'14';}/* colore dell'azienda (review 28/11) */var tx=div('', '<b>'+esc(t.o.locale)+'</b><small>'+esc(t.o.luogo||'')+'</small>');tx.style.flex='1';st.appendChild(tx);
     var sp=div('');sp.style.cssText='display:flex;gap:3px;align-items:center';
     if(i>0)sp.appendChild(bott('▲',false,function(){r.ordine.splice(i-1,0,r.ordine.splice(i,1)[0]);r.amano=true;disegnaGiro();},piccolo));
     if(i<r.ordine.length-1)sp.appendChild(bott('▼',false,function(){r.ordine.splice(i+1,0,r.ordine.splice(i,1)[0]);r.amano=true;disegnaGiro();},piccolo));
