@@ -214,7 +214,7 @@ textarea{resize:none;}
   #stampa th,#stampa td{border:1px solid #555;padding:3px 4px;vertical-align:top;overflow-wrap:break-word;text-align:left}
   #stampa th{background:#e7e6e6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #stampa thead{display:table-header-group}
-  #stampa tr{break-inside:avoid}
+  #stampa tr{break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #stampa table.tot{width:55%}
 }
 .cli-sugg{display:flex;flex-direction:column;gap:4px;margin-top:6px}
@@ -364,7 +364,7 @@ textarea{resize:none;}
     <div class="mhead"><span class="mtitle" id="smtit">Nuova Spedizione</span><button class="mclose" id="smcl">✕</button></div>
     <div class="mbody">
       <div class="fg" id="srepgrp" style="display:none"><label class="flbl">Azienda</label><div class="rpick" id="srpick"></div></div>
-      <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="sloc" placeholder=""></div>
+      <div class="fg"><label class="flbl">🏪 Nome Locale</label><input class="finp" id="sloc" placeholder="" autocomplete="off"><div id="scli-sugg"></div><div id="scli-info" class="cli-info"></div></div>
       <div class="fg"><label class="flbl">📍 Luogo Spedizione</label><input class="finp" id="sluogo" placeholder=""></div>
       <div class="fg">
         <label class="flbl">📨 Canale</label>
@@ -682,7 +682,7 @@ function decFields(id,d,fields,cb){
 }
 
 var ORDER_TEXT_FIELDS = ['locale','luogo','merce','sigilli','omaggio','note','day','userId','cliente'];  // cliente = scheda della mappa
-var SHIP_TEXT_FIELDS  = ['locale','luogo','canale','merce','sigilli','pagamento','omaggio','note','userId'];
+var SHIP_TEXT_FIELDS  = ['locale','luogo','canale','merce','sigilli','pagamento','omaggio','note','userId','cliente'];  // cliente: 28/11
 
 function encOrder(o,cb){
   encFields(o,ORDER_TEXT_FIELDS,{
@@ -902,7 +902,7 @@ function buildChipPicker(containerId, opts, currentVal, accentColor, accentBg, o
   opts.forEach(function(opt) {
     var btn = document.createElement('button');
     var isOn = selArr.indexOf(opt) !== -1;
-    btn.className = 'chip' + (isOn ? ' on' : (containerId === 'osig-pick' && ABIT_SIG.indexOf(opt) >= 0 ? ' abit' : ''));  // sigilli di solito
+    btn.className = 'chip' + (isOn ? ' on' : ((containerId === 'osig-pick' || containerId === 'ssig-pick') && ABIT_SIG.indexOf(opt) >= 0 ? ' abit' : ''));  // sigilli di solito
     if (isOn) { btn.style.background='var(--chip-green-bg)'; btn.style.color='var(--chip-green)'; btn.style.borderColor='#16a87a55'; }
     else { btn.style.background=''; btn.style.color=''; btn.style.borderColor=''; }
     btn.textContent = opt + (isOn ? ' ✓' : '');
@@ -1540,10 +1540,34 @@ function openShipmentModal(editId){
   document.getElementById('snot').value=ship?ship.note||'':'';
   var selSSig = ship?ship.sigilli:'';
   var selSpag = ship?ship.pagamento:'';
+  ABIT_ART=[];ABIT_SIG=[];
   buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});
   var selSMer = ship?ship.merce:'';
   buildArticoloPicker('smer-pick', selSMer, function(v){selSMer=v;});
   buildChipPicker('spag-pick', PAG_OPTS, selSpag, u.color, u.bg, function(v){selSpag=v;});
+
+  // D1 (28/11): cliente della mappa anche nelle spedizioni, come nel nuovo ordine: suggerimenti mentre scrivi il locale,
+  // scegliendolo si riempie il luogo con l'indirizzo completo e si evidenziano articoli e sigilli di solito
+  var selCli=ship&&ship.cliente?ship.cliente:null;
+  var fl=document.getElementById('sloc'),sg=document.getElementById('scli-sugg'),inf=document.getElementById('scli-info');
+  sg.innerHTML='';
+  function evidenzia(c){var nuovo=c?abitudini(c):[],sig=c?abitudiniSigilli(c):[];
+    if(sig.join('|')!==ABIT_SIG.join('|')){ABIT_SIG=sig;buildChipPicker('ssig-pick', SIGILLI_OPTS, selSSig, u.color, u.bg, function(v){selSSig=v;});}
+    if(nuovo.join('|')===ABIT_ART.join('|'))return;ABIT_ART=nuovo;buildArticoloPicker('smer-pick', selSMer, function(v){selSMer=v;});}
+  function info(){var c=selCli&&NCLI.perId[selCli],t=fl.value.trim();
+    if(c){inf.innerHTML='✓ Cliente della mappa · '+esc(testoAbitudini(c))+((c.pagamento||[]).length?' · Pagamento: '+esc(c.pagamento.join(' · ')):'')+'<a href="'+URL_MAPPA+'#cliente='+encodeURIComponent(c._doc)+'" target="_blank" rel="noopener">✏️ Correggi</a>';return;}
+    if(NCLI.stato==='nokey'){inf.textContent='Elenco clienti della mappa non disponibile su questo telefono: apri una volta l\'app Framezzino Network.';return;}
+    inf.innerHTML=t&&NCLI.lista.length?'🆕 Non è nell\'elenco della mappa (va bene lo stesso)<a href="'+URL_MAPPA+'#nuovo" target="_blank" rel="noopener">＋ Aggiungilo alla mappa</a>':'';}
+  fl.oninput=function(){selCli=null;evidenzia(null);sg.innerHTML='';var l=fl.value.trim().length>=2?cercaClienti(fl.value):[];
+    if(l.length){var box=document.createElement('div');box.className='cli-sugg';
+      l.forEach(function(c){var b=document.createElement('button');b.type='button';
+        var refs=(c.referenti||[]).map(function(r){return nomeRef(r,c);}).filter(Boolean).join(', ');
+        b.innerHTML=esc(c.locale||c.nomeGoogle)+'<small>'+esc(indirizzoSped(c))+(refs?' · '+esc(refs):'')+'</small>';
+        b.onclick=function(){selCli=c._doc;fl.value=c.locale||c.nomeGoogle||'';document.getElementById('sluogo').value=indirizzoSped(c);sg.innerHTML='';evidenzia(c);info();};
+        box.appendChild(b);});
+      sg.appendChild(box);}
+    info();};
+  evidenzia(selCli&&NCLI.perId[selCli]);info();
   document.getElementById('srepgrp').style.display=isEdit?'flex':'none';
 
   // Chan picker
@@ -1615,7 +1639,7 @@ function openShipmentModal(editId){
     sb.textContent='…';sb.disabled=true;
     var bools={};SHIP_FIELDS.forEach(function(f){bools[f.k]=chipState[f.k]||false;});PAG_EXTRA.forEach(function(f){bools[f.k]=chipState[f.k]||false;});
     var maxSPos=S.shipments.reduce(function(m,s){return s.pos!=null&&s.pos>m?s.pos:m;},0);
-    var payload=Object.assign({locale:locale,luogo:document.getElementById('sluogo').value.trim(),canale:selChan,merce:selSMer||'',sigilli:selSSig||'',pagamento:selSpag||'',omaggio:document.getElementById('somaggio').value.trim(),note:document.getElementById('snot').value.trim(),userId:selRep,pos:isEdit?(ship.pos!=null?ship.pos:maxSPos+1):maxSPos+1},bools);
+    var payload=Object.assign({cliente:selCli||'',locale:locale,luogo:document.getElementById('sluogo').value.trim(),canale:selChan,merce:selSMer||'',sigilli:selSSig||'',pagamento:selSpag||'',omaggio:document.getElementById('somaggio').value.trim(),note:document.getElementById('snot').value.trim(),userId:selRep,pos:isEdit?(ship.pos!=null?ship.pos:maxSPos+1):maxSPos+1},bools);
     if(isEdit){payload.createdAt=ship.createdAt;payload.updatedAt=new Date().toISOString();}
     else{payload.createdAt=new Date().toISOString();}
     encShipment(payload,function(err,enc){
@@ -1652,6 +1676,8 @@ function abitudini(c){var art=[];(c.prodotti||[]).forEach(function(p){(PROD_ART[
 function abitudiniSigilli(c){var out=[];(c.sigilli||[]).forEach(function(x){var n=nNorm(x),b=/^pers/.test(n)?'Pers.':/^color/.test(n)?'Color.':/^smile/.test(n)?'Smile':'';
   if(!b)return;var v=b+(/omaggio/.test(n)?' om.':' €');if(out.indexOf(v)<0)out.push(v);});return out;}
 function testoAbitudini(c){var p=(c.prodotti||[]).join(' · '),s=(c.sigilli||[]).join(' · ');return (p?'Prende di solito: '+p:'Prodotti non segnati in rubrica')+(s?' · Sigilli: '+s:'');}
+// indirizzo completo per spedire (quello di Google, senza "Italia"); se manca, comune e via
+function indirizzoSped(c){var a=String(c.indirizzo||'').replace(/,\s*Italia\s*$/i,'').trim();return a||luogoDi(c);}
 function luogoDi(c){var via=String(c.indirizzo||'').split(/,\s*\d{5}/)[0];return (c.comune||'')+(via&&via!==c.comune?', '+via:'');}
 // NOME DEL REFERENTE (27/11, Jacopo: come nell'app della mappa, framezzino-network 9fbab43). Se la scheda non ha il nome della
 // persona, o il nome non c'e' piu' nel contatto, si prende dalle parole in fondo al contatto dopo il nome del locale
@@ -1779,7 +1805,8 @@ function disegnaGiro(){var B=document.getElementById('girobody'),G=GIRO;B.innerH
     toast('Cerco la tua posizione…');navigator.geolocation.getCurrentPosition(function(p){G.qui={lat:p.coords.latitude,lng:p.coords.longitude};G.partenza='qui';G.ris=null;disegnaGiro();},
       function(){toast('Posizione non disponibile: consenti la posizione a DeliverySync','err');},{enableHighAccuracy:true,timeout:15000});}));
   B.appendChild(pb);
-  var lista=div('');G.rows.forEach(function(o){var p=posizioneOrdine(o),r=div('giro-st');
+  var lista=div('');G.rows.forEach(function(o){var p=posizioneOrdine(o),r=div('giro-st'),uu=USERS[o.userId];
+    if(uu){r.style.background=uu.bg;r.style.borderLeft='4px solid '+uu.color;r.style.paddingLeft='6px';}  // azienda (28/11)
     var cb=document.createElement('input');cb.type='checkbox';cb.checked=!!G.scelti[o.id];cb.onchange=function(){G.scelti[o.id]=cb.checked;G.ris=null;disegnaGiro();};
     r.appendChild(cb);var tx=div('', '<b>'+esc(o.locale)+'</b><small>'+esc(o.luogo||'')+' · '+(p?(p.come==='mappa'?'📍 dalla mappa':p.come==='nome'?'📍 trovato per nome':'📍 trovato su Google'):'⚠ senza posizione: resta fuori dal calcolo')+'</small>');
     tx.style.flex='1';r.appendChild(tx);
@@ -1882,6 +1909,9 @@ function adattaColonne(o){var Wmax=o.orizzontale?150:100;
   var peso2=0;serve.forEach(function(x,i){if(!fisse[i])peso2+=Math.pow(x,0.6);});
   serve.forEach(function(x,i){if(!fisse[i])w[i]=resto*Math.pow(x,0.6)/peso2;});
   return w.map(function(x,i){return Math.max(parola[i],Math.floor(x));});}
+// D4 (28/11): righe colorate secondo l'azienda della prima colonna (Framezzino arancione chiaro, JP Empire azzurro chiaro)
+var COLORE_RIGA={FRAMEZZINO:'FFEDD5',JP_EMPIRE:'E0F2FE'};
+function aziendaRiga(r){var x=Object.values(USERS).find(function(u){return u.label===String(r&&r[0]);});return x?x.id:'';}
 function righeTesto(v,w){return String(v==null?'':v).split('\n').reduce(function(s,x){return s+Math.max(1,Math.ceil(x.length/Math.max(1,w-1)));},0);}
 function altezzaRiga(celle,W){var l=1;celle.forEach(function(v,i){if(W[i])l=Math.max(l,righeTesto(v,W[i]));});return l*15+3;}
 // 🖨️ stampa senza Excel: la pagina A4 la prepara l'app (verticale per le consegne, orizzontale per le spedizioni), le righe
@@ -1893,7 +1923,7 @@ function stampaTabella(o){var W=adattaColonne(o),tot=W.reduce(function(a,b){retu
   var h='<h1>'+esc(o.titolo)+' · '+new Date().toLocaleDateString('it-IT')+'</h1><table><colgroup>'+
     W.map(function(w){return '<col style="width:'+(100*w/tot).toFixed(1)+'%">';}).join('')+'</colgroup><thead><tr>'+
     o.colonne.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>'+
-    o.righe.map(function(r){return '<tr>'+o.colonne.map(function(_,i){return '<td>'+esc(r[i]==null?'':r[i]).replace(/\n/g,'<br>')+'</td>';}).join('')+'</tr>';}).join('')+
+    o.righe.map(function(r){var a=aziendaRiga(r);return '<tr'+(COLORE_RIGA[a]?' style="background:#'+COLORE_RIGA[a]+'"':'')+'>'+o.colonne.map(function(_,i){return '<td>'+esc(r[i]==null?'':r[i]).replace(/\n/g,'<br>')+'</td>';}).join('')+'</tr>';}).join('')+
     '</tbody></table>';
   if(o.totali&&o.totali.righe.length){
     h+='<table class="tot"><thead><tr><th>Totale per articolo</th><th>Quantità</th><th>di cui omaggio</th></tr></thead><tbody>'+
@@ -1910,7 +1940,8 @@ function creaXlsx(o){
   var oggi=new Date().toLocaleDateString('it-IT');
   riga([o.titolo+' · '+oggi],3,22);r++;
   var rigaTitoli=r+1;riga(o.colonne,1,altezzaRiga(o.colonne,W));
-  o.righe.forEach(function(c){var celle=o.colonne.map(function(_,i){return c[i]==null?'':String(c[i]);});riga(celle,2,altezzaRiga(celle,W));});
+  o.righe.forEach(function(c){var celle=o.colonne.map(function(_,i){return c[i]==null?'':String(c[i]);}),a=aziendaRiga(c);
+    riga(celle,a==='FRAMEZZINO'?7:a==='JP_EMPIRE'?8:2,altezzaRiga(celle,W));});
   if(o.totali&&o.totali.righe.length){r++;riga(['TOTALE PER ARTICOLO','Quantità','di cui omaggio'],[4,4,4]);
     o.totali.righe.forEach(function(x){riga(x,[5,6,6]);});
     if(o.totali.omaggiNonContati.length)riga(['Omaggi scritti a parole (non contati): '+o.totali.omaggiNonContati.join(' · ')],0);}
@@ -1924,9 +1955,10 @@ function creaXlsx(o){
   var nomeFoglio=o.nome.slice(0,31);
   var stili='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     +'<fonts count="3"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="14"/><name val="Calibri"/></font></fonts>'
-    +'<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/><bgColor indexed="64"/></patternFill></fill></fills>'
+    +'<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE7E6E6"/><bgColor indexed="64"/></patternFill></fill>'
+    +'<fill><patternFill patternType="solid"><fgColor rgb="FF'+COLORE_RIGA.FRAMEZZINO+'"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF'+COLORE_RIGA.JP_EMPIRE+'"/><bgColor indexed="64"/></patternFill></fill></fills>'
     +'<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders>'
-    +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="7">'
+    +'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9">'
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
@@ -1934,6 +1966,8 @@ function creaXlsx(o){
     +'<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
     +'<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
     +'<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center"/></xf>'
+    +'<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
+    +'<xf numFmtId="0" fontId="0" fillId="4" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'
     +'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   return zipStore([
     {nome:'[Content_Types].xml',dati:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
