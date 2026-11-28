@@ -1727,7 +1727,7 @@ function sigDaTesto(t){var m=String(t).trim().match(/^(\d+(?:,\d+)?) kit (.+)$/)
   var tipo=SIG_TIPI.slice().sort(function(a,b){return b.length-a.length;}).find(function(x){return resto===x||resto.indexOf(x+' ')===0;});
   if(!tipo)return null;var r={n:numDa(m[1]),tipo:tipo,colori:[],misti:false,ncol:0,om:om},c=resto.slice(tipo.length).trim();
   if(c==='misti')r.misti=true;
-  else if(/^a \d colori?$/.test(c))r.ncol=parseInt(c.slice(2),10);
+  else if(/^a \d color[ei]$/.test(c))r.ncol=parseInt(c.slice(2),10);  // «a 1 colore» (28/11: prima non si rileggeva)
   else if(/^\(.+\)$/.test(c))c.slice(1,-1).split(' + ').forEach(function(p){var q=p.match(/^(\d+(?:,\d+)?) (\S+)$/);if(q)r.colori.push({c:q[2],n:numDa(q[1])});});
   else if(c)r.colori.push({c:c,n:r.n});
   return r;}
@@ -1764,7 +1764,9 @@ function buildSigilli(id,iniziale,onChange){
       [1,2,3,4,5,6].forEach(function(n){var b=el('button','sig-col',String(n));if(r.ncol===n){b.style.background='#334155';b.style.borderColor='#334155';b.style.color='#fff';}
         b.onclick=function(){r.ncol=r.ncol===n?0:n;cambia();};pc.appendChild(b);});d.appendChild(pc);}
     return d;}
-  function aggiungi(tipo,om){st.righe.push({n:1,tipo:tipo,colori:[],misti:false,ncol:0,om:!!om});aperto=false;cambia();}
+  function aggiungi(tipo,om,a){var r={n:1,tipo:tipo,colori:[],misti:false,ncol:0,om:!!om};
+    if(a){r.misti=!!a.misti;r.ncol=a.ncol||0;(a.colori||[]).forEach(function(c){r.colori.push({c:c,n:0});});if(r.colori.length)dividi(r);}  // colori della scheda (28/11)
+    st.righe.push(r);aperto=false;cambia();}
   function draw(){box.innerHTML='';
     st.righe.forEach(function(r,i){box.appendChild(riga(r,i));});
     if(st.vecchi.length){var v=el('div','cond-l');v.appendChild(el('span','cond-vuoto','Scritti prima:'));
@@ -1773,14 +1775,14 @@ function buildSigilli(id,iniziale,onChange){
     if(!st.righe.length&&!st.vecchi.length)box.appendChild(el('div','cond-vuoto','Nessun sigillo (neutri)'));
     var sol=abit.filter(function(a){return !st.righe.some(function(r){return r.tipo===a.tipo;});});
     if(sol.length){var so=el('div','cond-l');so.style.marginTop='8px';so.appendChild(el('span','cond-vuoto','Di solito:'));
-      sol.forEach(function(a){var b=el('button','cond-btn sig-abit','＋ '+a.tipo+(a.om?' (omaggio)':''));b.onclick=function(){aggiungi(a.tipo,a.om);};so.appendChild(b);});
+      sol.forEach(function(a){var b=el('button','cond-btn sig-abit','＋ '+nomeAbit(a));b.onclick=function(){aggiungi(a.tipo,a.om,a);};so.appendChild(b);});
       box.appendChild(so);}
     var add=el('button','cond-btn'+(aperto?' on':''),aperto?'✕ Chiudi':'＋ Aggiungi sigilli');add.style.marginTop='8px';
     add.onclick=function(){aperto=!aperto;draw();};box.appendChild(add);
     if(aperto){var m=el('div','cond-menu');
       SIG_GRUPPI.forEach(function(g){m.appendChild(el('div','sig-g',g[0]));var rr=el('div','cond-row');
         g[1].forEach(function(t){var a=abit.find(function(y){return y.tipo===t;}),b=el('button','cond-btn'+(a?' sig-abit':''),t);
-          b.onclick=function(){aggiungi(t,a&&a.om);};rr.appendChild(b);});m.appendChild(rr);});
+          b.onclick=function(){aggiungi(t,a&&a.om,a);};rr.appendChild(b);});m.appendChild(rr);});
       box.appendChild(m);}}
   draw();
   return {valore:valore,abitudini:function(l){abit=l||[];draw();}};}
@@ -1837,9 +1839,17 @@ function buildCondizioni(id,iniziali,fisse,cosa){
 function abitudini(c){var art=[];(c.prodotti||[]).forEach(function(p){(PROD_ART[nNorm(p).trim()]||[]).forEach(function(a){if(art.indexOf(a)<0)art.push(a);});});return art;}
 // sigilli della rubrica -> tipi del catalogo (D2, 28/11): {tipo, om}; "(omaggio)" = in omaggio (a pagamento e' il caso
 // normale e in rubrica non si scrive). Evidenziati in giallo nel menu e proposti in «Di solito».
+// Dal 28/11 la scheda della mappa puo' avere anche i colori (senza kit): «Produzione propria verde», «Colorati verde + rosso»,
+// «Colorati misti», «Personalizzati a 3 colori»: «Di solito» aggiunge la riga gia' con quei colori (1 kit, divisi).
 function abitudiniSigilli(c){var out=[];(c.sigilli||[]).forEach(function(x){var n=nNorm(x).trim();
-  var t=/^pers/.test(n)?'Personalizzati':/^color/.test(n)?'Colorati':SIG_TIPI.find(function(k){return n.indexOf(nNorm(k))===0;});
-  if(!t||out.some(function(a){return a.tipo===t;}))return;out.push({tipo:t,om:/omaggio/.test(n)});});return out;}
+  var t=SIG_TIPI.slice().sort(function(a,b){return b.length-a.length;}).find(function(k){return n.indexOf(nNorm(k))===0;})||(/^pers/.test(n)?'Personalizzati':/^color/.test(n)?'Colorati':null);
+  if(!t||out.some(function(a){return a.tipo===t;}))return;var a={tipo:t,om:/omaggio/.test(n)};
+  var resto=n.indexOf(nNorm(t))===0?n.slice(t.length).replace(/\(omaggio\)/,'').trim():'';
+  if(SIG_COLORATI.indexOf(t)>=0&&resto){if(resto==='misti')a.misti=true;
+    else{var cc=resto.split(/\s*\+\s*/).filter(function(y){return SIG_COLORI.some(function(k){return k[0]===y;});});if(cc.length)a.colori=cc;}}
+  var m=resto.match(/^a ([1-6]) color[ei]$/);if(t==='Personalizzati'&&m)a.ncol=+m[1];
+  out.push(a);});return out;}
+function nomeAbit(a){return a.tipo+(a.misti?' misti':a.colori?' '+a.colori.join(' + '):'')+(a.ncol?' a '+a.ncol+(a.ncol===1?' colore':' colori'):'')+(a.om?' (omaggio)':'');}
 function testoAbitudini(c){var p=(c.prodotti||[]).join(' · '),s=(c.sigilli||[]).join(' · ');return (p?'Prende di solito: '+p:'Prodotti non segnati in rubrica')+(s?' · Sigilli: '+s:'');}
 // indirizzo completo per spedire (quello di Google, senza "Italia"); se manca, comune e via
 function indirizzoSped(c){var a=String(c.indirizzo||'').replace(/,\s*Italia\s*$/i,'').trim();return a||luogoDi(c);}
